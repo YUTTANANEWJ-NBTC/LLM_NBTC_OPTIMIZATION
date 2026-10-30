@@ -8,11 +8,11 @@ An interactive, visual simulation suite explaining **The 4 Knives (Parallelism M
 
 ## 🧭 The 3 Interactive Versions in this Suite
 
-| Version | File | Primary Model | Hardware Target | Purpose & View Mode |
+| Version | Live GitHub Pages Link | Primary Model | Hardware Target | Purpose & View Mode |
 | :--- | :--- | :--- | :--- | :--- |
-| **v1** | [`index.html`](file:///d:/06_งานปี%2069/18_vLLM%20Simulation/index.html) | **DeepSeek-V4-Flash (284B MoE)** | **8× NVIDIA B200 (180GB HBM3e)** | **8-GPU Cluster & Topology View**: NVLink mesh, 4 Knives slicing matrix, Ray Summit benchmark metrics, and live packet stream. |
-| **v2** | [`index_v2.html`](file:///d:/06_งานปี%2069/18_vLLM%20Simulation/index_v2.html) | **DeepSeek-V4-Flash (284B MoE)** | **8× NVIDIA B200 (180GB HBM3e)** | **3D Transformer Explainer View**: Isometric interactive model architecture, token flow through Attention + 256 Routed Experts, and 8-step guided tutorial. |
-| **v3** | [`index_v3.html`](file:///d:/06_งานปี%2069/18_vLLM%20Simulation/index_v3.html) | **Qwen 3.8 27B (Dense Transformer)** | **24× NVIDIA A100 / A40 vGPUs** | **Enterprise Fleet Capacity Planner (2,000 Users · 30 Concurrency)**: Live VRAM SLA calculator, 24-vGPU fleet topology map, GQA sharding stage, and 4 production deployment strategies. |
+| **v1** | [`index.html`](https://yuttananewj-nbtc.github.io/LLM_NBTC_OPTIMIZATION/index.html) | **DeepSeek-V4-Flash (284B MoE)** | **8× NVIDIA B200 (180GB HBM3e)** | **8-GPU Cluster & Topology View**: NVLink mesh, 4 Knives slicing matrix, Ray Summit benchmark metrics, and live packet stream. |
+| **v2** | [`index_v2.html`](https://yuttananewj-nbtc.github.io/LLM_NBTC_OPTIMIZATION/index_v2.html) | **DeepSeek-V4-Flash (284B MoE)** | **8× NVIDIA B200 (180GB HBM3e)** | **3D Transformer Explainer View**: Isometric interactive model architecture, token flow through Attention + 256 Routed Experts, and 8-step guided tutorial. |
+| **v3** | [`index_v3.html`](https://yuttananewj-nbtc.github.io/LLM_NBTC_OPTIMIZATION/index_v3.html) | **Qwen 3.8 27B (Dense Transformer)** | **24× NVIDIA A100 / A40 vGPUs** | **Enterprise Fleet Capacity Planner (2,000 Users · 30 Concurrency)**: Live VRAM SLA calculator, 24-vGPU fleet topology map, GQA sharding stage, and 4 production deployment strategies. |
 
 ---
 
