@@ -1,0 +1,2127 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vLLM & Ray Parallelism & Deployment Simulator | DeepSeek-V4-Flash on 8× B200</title>
+
+  <!-- OpenGraph Metadata for Social & GitHub Sharing -->
+  <meta property="og:title" content="vLLM & Ray Parallelism & Deployment Simulator">
+  <meta property="og:description" content="Interactive visual simulation of 4 Parallelism Knives (TP, TEP, PP, DEP) and 4 Deployment Strategies (A-D) on 8× NVIDIA B200 GPUs from Ray Summit 2026.">
+  <meta property="og:type" content="website">
+  <meta name="description" content="Interactive simulator for vLLM & Ray Serve serving DeepSeek-V4-Flash 284B/13B MoE on 8× NVIDIA B200 GPUs.">
+  <meta name="theme-color" content="#0f172a">
+
+  <!-- Google Fonts: Inter & Noto Sans Thai -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans Thai', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              900: '#064e3b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Custom CSS for GitHub Pages Standalone Host -->
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --content-bg: #0b1120;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #10b981;
+    }
+    html.light {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --content-bg: #f1f5f9;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent: #059669;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: 'Inter', 'Noto Sans Thai', sans-serif;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .card-panel {
+      background-color: var(--card-bg);
+      border-color: var(--card-border);
+    }
+    .content-panel {
+      background-color: var(--content-bg);
+      border-color: var(--card-border);
+    }
+
+    /* High-tech pulsing animations */
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.3; transform: scale(0.99); }
+      50% { opacity: 0.9; transform: scale(1.01); }
+    }
+    @keyframes packetFlow {
+      0% { stroke-dashoffset: 100; }
+      100% { stroke-dashoffset: 0; }
+    }
+    @keyframes bubbleFloat {
+      0% { transform: translateY(0px) scale(0.95); opacity: 0.4; }
+      50% { transform: translateY(-8px) scale(1.05); opacity: 0.9; }
+      100% { transform: translateY(0px) scale(0.95); opacity: 0.4; }
+    }
+    .flow-line {
+      stroke-dasharray: 8 6;
+      animation: packetFlow 1.2s linear infinite;
+    }
+    .flow-line-fast {
+      stroke-dasharray: 6 4;
+      animation: packetFlow 0.6s linear infinite;
+    }
+    .bubble-anim {
+      animation: bubbleFloat 2s ease-in-out infinite;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--card-border);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="antialiased min-h-screen p-3 sm:p-5 md:p-8 text-sm">
+
+  <!-- Main Wrapper -->
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Top Navbar & Theme Toggle Header -->
+    <header class="card-panel border rounded-2xl p-5 shadow-lg space-y-4">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              Ray Summit 2026 Recap · Pages 21–30
+            </span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-500 border border-blue-500/20">
+              vLLM v0.27.1 + Ray Serve
+            </span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-500 border border-purple-500/20">
+              8× NVIDIA B200 (180GB HBM3e)
+            </span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-500 border border-cyan-500/20">
+              Ready for GitHub Pages
+            </span>
+          </div>
+          <h1 class="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight">
+            vLLM & Ray Parallelism & Deployment Simulator
+          </h1>
+          <p class="text-xs sm:text-sm text-gray-400 dark:text-gray-400 mt-1">
+            จำลองและวิเคราะห์ 4 วิธีการหั่นโมเดล (<strong class="text-emerald-400">The 4 Knives</strong>) & 4 รูปแบบคลัสเตอร์ (<strong class="text-blue-400">Strategies A–D</strong>) สำหรับ 
+            <strong class="text-white dark:text-gray-100 font-semibold">DeepSeek-V4-Flash</strong> (284B / 13B active Sparse MoE)
+          </p>
+        </div>
+
+        <!-- Controls: Theme Toggle & Quick Specs -->
+        <div class="flex items-center gap-3">
+          <!-- Theme Toggle Button -->
+          <button onclick="toggleTheme()" id="theme-toggle-btn"
+            class="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-700 bg-gray-800/80 hover:bg-gray-700 text-xs font-medium transition-all shadow-sm">
+            <span id="theme-icon">☀️</span>
+            <span id="theme-text">Light Mode</span>
+          </button>
+
+          <!-- Quick Hardware Badge -->
+          <div class="hidden sm:flex items-center gap-3 content-panel border rounded-xl p-2.5 text-xs">
+            <div class="text-center px-2 border-r border-gray-700">
+              <div class="text-[10px] text-gray-400">Checkpoint</div>
+              <div class="font-bold text-amber-400">167 GB (FP4+FP8)</div>
+            </div>
+            <div class="text-center px-2 border-r border-gray-700">
+              <div class="text-[10px] text-gray-400">Active Experts</div>
+              <div class="font-bold text-blue-400">6 / 256 (+1 shared)</div>
+            </div>
+            <div class="text-center px-2">
+              <div class="text-[10px] text-gray-400">Native Context</div>
+              <div class="font-bold text-emerald-400">1M (CSA + HCA)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex flex-wrap items-center gap-2 border-t border-gray-800 pt-3">
+        <button onclick="switchTab('knives')" id="tab-btn-knives" 
+          class="tab-btn px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 bg-emerald-600 text-white shadow-sm">
+          <span>🔪</span>
+          <span class="font-semibold">The 4 Knives</span>
+          <span class="text-[11px] opacity-80">(TP, TEP, PP, DEP + DCP)</span>
+        </button>
+
+        <button onclick="switchTab('strategies')" id="tab-btn-strategies" 
+          class="tab-btn px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 content-panel text-gray-400 hover:text-white border border-gray-800">
+          <span>🚀</span>
+          <span class="font-semibold">Strategies A–D</span>
+          <span class="text-[11px] opacity-80">(4 Tested Shapes)</span>
+        </button>
+
+        <button onclick="switchTab('benchmark')" id="tab-btn-benchmark" 
+          class="tab-btn px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 content-panel text-gray-400 hover:text-white border border-gray-800">
+          <span>📊</span>
+          <span class="font-semibold">Benchmark & Latency</span>
+          <span class="text-[11px] opacity-80">(Page 28 & Cache Dial)</span>
+        </button>
+
+        <button onclick="switchTab('wizard')" id="tab-btn-wizard" 
+          class="tab-btn px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 content-panel text-gray-400 hover:text-white border border-gray-800">
+          <span>🧭</span>
+          <span class="font-semibold">Decision Wizard & CLI</span>
+          <span class="text-[11px] opacity-80">(Rule of Thumb)</span>
+        </button>
+      </nav>
+    </header>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: THE 4 KNIVES (PARALLELISM METHODS) -->
+    <!-- ========================================================================= -->
+    <section id="tab-knives" class="space-y-6">
+
+      <!-- Knife Selector Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <!-- TP -->
+        <button onclick="selectKnife('TP')" id="knife-btn-TP"
+          class="knife-btn text-left p-3.5 rounded-xl border border-gray-800 card-panel hover:border-blue-500 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-500/15 text-blue-400">TP</span>
+            <span class="text-[11px] text-gray-400">Intra-Node</span>
+          </div>
+          <div class="font-bold text-sm">Tensor Parallel</div>
+          <div class="text-gray-400 text-xs mt-1">Slices EVERY layer across GPUs. Constant All-Reduce.</div>
+        </button>
+
+        <!-- TEP -->
+        <button onclick="selectKnife('TEP')" id="knife-btn-TEP"
+          class="knife-btn text-left p-3.5 rounded-xl border-2 border-emerald-500 bg-emerald-500/10 transition-all shadow-md">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">TEP ★ Winner</span>
+            <span class="text-[11px] text-emerald-400 font-semibold">Strategy A</span>
+          </div>
+          <div class="font-bold text-sm">Tensor + Expert</div>
+          <div class="text-gray-400 text-xs mt-1">Slices Attention; assigns whole intact Experts to GPUs.</div>
+        </button>
+
+        <!-- PP -->
+        <button onclick="selectKnife('PP')" id="knife-btn-PP"
+          class="knife-btn text-left p-3.5 rounded-xl border border-gray-800 card-panel hover:border-amber-500 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400">PP</span>
+            <span class="text-[11px] text-gray-400">Inter-Node</span>
+          </div>
+          <div class="font-bold text-sm">Pipeline Parallel</div>
+          <div class="text-gray-400 text-xs mt-1">Cuts model into layer stages. Assembly line over RoCE.</div>
+        </button>
+
+        <!-- DEP -->
+        <button onclick="selectKnife('DEP')" id="knife-btn-DEP"
+          class="knife-btn text-left p-3.5 rounded-xl border border-gray-800 card-panel hover:border-purple-500 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-purple-500/15 text-purple-400">DEP</span>
+            <span class="text-[11px] text-gray-400">Reference</span>
+          </div>
+          <div class="font-bold text-sm">Data + Expert</div>
+          <div class="text-gray-400 text-xs mt-1">Full copy of Attention on each GPU; 32 experts per GPU.</div>
+        </button>
+
+        <!-- DCP (Bonus) -->
+        <button onclick="selectKnife('DCP')" id="knife-btn-DCP"
+          class="knife-btn text-left p-3.5 rounded-xl border border-gray-800 card-panel hover:border-cyan-500 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-400">DCP</span>
+            <span class="text-[11px] text-gray-400">Long Context</span>
+          </div>
+          <div class="font-bold text-sm">Decode Context</div>
+          <div class="text-gray-400 text-xs mt-1">Shards decode KV cache across TP ranks for 1M context.</div>
+        </button>
+      </div>
+
+      <!-- Main Canvas Panel -->
+      <div class="card-panel border rounded-2xl p-5 shadow-sm space-y-5">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-800 pb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="knife-badge" class="px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400">
+                TEP (Tensor + Expert Parallel)
+              </span>
+              <h2 id="knife-title" class="font-bold text-base sm:text-lg">
+                Slices Attention, Keeps Experts Whole
+              </h2>
+            </div>
+            <p id="knife-desc" class="text-xs sm:text-sm text-gray-400 mt-1">
+              หั่น Attention matrix ข้าม 8 GPUs แบบ TP แต่แบ่ง 256 Routed Experts ให้แต่ละ GPU ถือแบบเต็มตัว (GPU ละ 32 experts สมบูรณ์)
+            </p>
+          </div>
+
+          <div id="knife-extra-control" class="flex items-center gap-2 content-panel border border-gray-800 px-3 py-2 rounded-xl text-xs">
+            <span class="text-gray-400">Network Domain:</span>
+            <span id="knife-network-tag" class="font-semibold text-emerald-400">Intra-Node NVLink (1.8 TB/s)</span>
+          </div>
+        </div>
+
+        <!-- PP Bubble Slider -->
+        <div id="pp-bubble-control" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-amber-400 font-bold text-sm">⚠️ Pipeline Bubble Simulator</span>
+              <span class="text-xs text-gray-400">(Page 24: Pipeline bubbles dominate at small batch sizes)</span>
+            </div>
+            <div class="text-xs font-semibold">
+              Batch Concurrency: <span id="pp-concurrency-val" class="text-amber-400 font-bold text-sm">2 Requests</span>
+            </div>
+          </div>
+          <input type="range" id="pp-concurrency-slider" min="1" max="32" value="2" 
+            oninput="updatePPConcurrency(this.value)"
+            class="w-full accent-amber-500 cursor-pointer">
+          <div class="flex justify-between text-[11px] text-gray-400">
+            <span>Low Concurrency (1 req) → Massive Idling Bubbles</span>
+            <span>Medium (8 reqs)</span>
+            <span>High Concurrency (32 reqs) → Full Assembly Line</span>
+          </div>
+          <div id="pp-bubble-status" class="text-xs text-amber-300 font-medium pt-1">
+            ⚡ Bubble Idle Rate: ~75% idle time! GPUs 4-7 must wait while GPUs 0-3 finish Stage 1 layers.
+          </div>
+        </div>
+
+        <!-- 8-GPU Cluster Interactive Canvas -->
+        <div class="relative content-panel border border-gray-800 rounded-2xl p-4 md:p-6 overflow-hidden">
+          <div class="flex items-center justify-between text-xs text-gray-400 mb-4 px-2">
+            <div class="flex items-center gap-2">
+              <div class="w-3 h-3 rounded-full bg-blue-500/40 border border-blue-400"></div>
+              <span>NVLink Mesh (1.8 TB/s bidirectional per GPU)</span>
+            </div>
+            <div id="interconnect-state" class="font-mono text-[11px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              Active: TEP Local Routing + Attention All-Reduce
+            </div>
+          </div>
+
+          <!-- SVG Bus overlay for animated lines -->
+          <svg id="bus-svg" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 10;"></svg>
+
+          <!-- 8 GPUs Grid (2 rows of 4 GPUs) -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 relative z-0">
+            <!-- GPU 0 -->
+            <div id="gpu-card-0" class="gpu-box card-panel border border-gray-800 rounded-xl p-3 shadow-sm transition-all space-y-2">
+              <div class="flex items-center justify-between border-b border-gray-800 pb-1.5">
+                <span class="font-bold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  GPU 0 (B200)
+                </span>
+                <span id="gpu-role-0" class="text-[11px] font-mono text-emerald-400">Attn 1/8 + Exp 0-31</span>
+              </div>
+              <div class="space-y-1.5 text-xs">
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span id="gpu-layer-type-0">Attention Weights</span>
+                    <span id="gpu-attn-stat-0" class="text-blue-400 font-mono">1/8 Sharded (TP)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-attn-bar-0" class="bg-blue-500 h-full rounded-full transition-all duration-300" style="width: 25%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>MoE Experts</span>
+                    <span id="gpu-exp-stat-0" class="text-emerald-400 font-mono">32 Intact (0..31)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-exp-bar-0" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 45%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>KV Cache Free</span>
+                    <span class="text-amber-400 font-mono">~5.03M Tok (FP8)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div class="bg-amber-500 h-full rounded-full" style="width: 30%;"></div>
+                  </div>
+                </div>
+              </div>
+              <div id="gpu-status-badge-0" class="mt-2 text-[11px] text-center py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                Active · 0.75 routed exp/tok
+              </div>
+            </div>
+
+            <!-- GPU 1 -->
+            <div id="gpu-card-1" class="gpu-box card-panel border border-gray-800 rounded-xl p-3 shadow-sm transition-all space-y-2">
+              <div class="flex items-center justify-between border-b border-gray-800 pb-1.5">
+                <span class="font-bold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  GPU 1 (B200)
+                </span>
+                <span id="gpu-role-1" class="text-[11px] font-mono text-emerald-400">Attn 1/8 + Exp 32-63</span>
+              </div>
+              <div class="space-y-1.5 text-xs">
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span id="gpu-layer-type-1">Attention Weights</span>
+                    <span id="gpu-attn-stat-1" class="text-blue-400 font-mono">1/8 Sharded (TP)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-attn-bar-1" class="bg-blue-500 h-full rounded-full transition-all duration-300" style="width: 25%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>MoE Experts</span>
+                    <span id="gpu-exp-stat-1" class="text-emerald-400 font-mono">32 Intact (32..63)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-exp-bar-1" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 45%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>KV Cache Free</span>
+                    <span class="text-amber-400 font-mono">~5.03M Tok (FP8)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div class="bg-amber-500 h-full rounded-full" style="width: 30%;"></div>
+                  </div>
+                </div>
+              </div>
+              <div id="gpu-status-badge-1" class="mt-2 text-[11px] text-center py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                Active · 0.75 routed exp/tok
+              </div>
+            </div>
+
+            <!-- GPU 2 -->
+            <div id="gpu-card-2" class="gpu-box card-panel border border-gray-800 rounded-xl p-3 shadow-sm transition-all space-y-2">
+              <div class="flex items-center justify-between border-b border-gray-800 pb-1.5">
+                <span class="font-bold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  GPU 2 (B200)
+                </span>
+                <span id="gpu-role-2" class="text-[11px] font-mono text-emerald-400">Attn 1/8 + Exp 64-95</span>
+              </div>
+              <div class="space-y-1.5 text-xs">
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span id="gpu-layer-type-2">Attention Weights</span>
+                    <span id="gpu-attn-stat-2" class="text-blue-400 font-mono">1/8 Sharded (TP)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-attn-bar-2" class="bg-blue-500 h-full rounded-full transition-all duration-300" style="width: 25%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>MoE Experts</span>
+                    <span id="gpu-exp-stat-2" class="text-emerald-400 font-mono">32 Intact (64..95)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-exp-bar-2" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 45%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>KV Cache Free</span>
+                    <span class="text-amber-400 font-mono">~5.03M Tok (FP8)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div class="bg-amber-500 h-full rounded-full" style="width: 30%;"></div>
+                  </div>
+                </div>
+              </div>
+              <div id="gpu-status-badge-2" class="mt-2 text-[11px] text-center py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                Active · 0.75 routed exp/tok
+              </div>
+            </div>
+
+            <!-- GPU 3 -->
+            <div id="gpu-card-3" class="gpu-box card-panel border border-gray-800 rounded-xl p-3 shadow-sm transition-all space-y-2">
+              <div class="flex items-center justify-between border-b border-gray-800 pb-1.5">
+                <span class="font-bold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  GPU 3 (B200)
+                </span>
+                <span id="gpu-role-3" class="text-[11px] font-mono text-emerald-400">Attn 1/8 + Exp 96-127</span>
+              </div>
+              <div class="space-y-1.5 text-xs">
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span id="gpu-layer-type-3">Attention Weights</span>
+                    <span id="gpu-attn-stat-3" class="text-blue-400 font-mono">1/8 Sharded (TP)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-attn-bar-3" class="bg-blue-500 h-full rounded-full transition-all duration-300" style="width: 25%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>MoE Experts</span>
+                    <span id="gpu-exp-stat-3" class="text-emerald-400 font-mono">32 Intact (96..127)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-exp-bar-3" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 45%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>KV Cache Free</span>
+                    <span class="text-amber-400 font-mono">~5.03M Tok (FP8)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div class="bg-amber-500 h-full rounded-full" style="width: 30%;"></div>
+                  </div>
+                </div>
+              </div>
+              <div id="gpu-status-badge-3" class="mt-2 text-[11px] text-center py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                Active · 0.75 routed exp/tok
+              </div>
+            </div>
+
+            <!-- GPU 4 -->
+            <div id="gpu-card-4" class="gpu-box card-panel border border-gray-800 rounded-xl p-3 shadow-sm transition-all space-y-2">
+              <div class="flex items-center justify-between border-b border-gray-800 pb-1.5">
+                <span class="font-bold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  GPU 4 (B200)
+                </span>
+                <span id="gpu-role-4" class="text-[11px] font-mono text-emerald-400">Attn 1/8 + Exp 128-159</span>
+              </div>
+              <div class="space-y-1.5 text-xs">
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span id="gpu-layer-type-4">Attention Weights</span>
+                    <span id="gpu-attn-stat-4" class="text-blue-400 font-mono">1/8 Sharded (TP)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-attn-bar-4" class="bg-blue-500 h-full rounded-full transition-all duration-300" style="width: 25%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>MoE Experts</span>
+                    <span id="gpu-exp-stat-4" class="text-emerald-400 font-mono">32 Intact (128..159)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-exp-bar-4" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 45%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>KV Cache Free</span>
+                    <span class="text-amber-400 font-mono">~5.03M Tok (FP8)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div class="bg-amber-500 h-full rounded-full" style="width: 30%;"></div>
+                  </div>
+                </div>
+              </div>
+              <div id="gpu-status-badge-4" class="mt-2 text-[11px] text-center py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                Active · 0.75 routed exp/tok
+              </div>
+            </div>
+
+            <!-- GPU 5 -->
+            <div id="gpu-card-5" class="gpu-box card-panel border border-gray-800 rounded-xl p-3 shadow-sm transition-all space-y-2">
+              <div class="flex items-center justify-between border-b border-gray-800 pb-1.5">
+                <span class="font-bold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  GPU 5 (B200)
+                </span>
+                <span id="gpu-role-5" class="text-[11px] font-mono text-emerald-400">Attn 1/8 + Exp 160-191</span>
+              </div>
+              <div class="space-y-1.5 text-xs">
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span id="gpu-layer-type-5">Attention Weights</span>
+                    <span id="gpu-attn-stat-5" class="text-blue-400 font-mono">1/8 Sharded (TP)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-attn-bar-5" class="bg-blue-500 h-full rounded-full transition-all duration-300" style="width: 25%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>MoE Experts</span>
+                    <span id="gpu-exp-stat-5" class="text-emerald-400 font-mono">32 Intact (160..191)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-exp-bar-5" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 45%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>KV Cache Free</span>
+                    <span class="text-amber-400 font-mono">~5.03M Tok (FP8)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div class="bg-amber-500 h-full rounded-full" style="width: 30%;"></div>
+                  </div>
+                </div>
+              </div>
+              <div id="gpu-status-badge-5" class="mt-2 text-[11px] text-center py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                Active · 0.75 routed exp/tok
+              </div>
+            </div>
+
+            <!-- GPU 6 -->
+            <div id="gpu-card-6" class="gpu-box card-panel border border-gray-800 rounded-xl p-3 shadow-sm transition-all space-y-2">
+              <div class="flex items-center justify-between border-b border-gray-800 pb-1.5">
+                <span class="font-bold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  GPU 6 (B200)
+                </span>
+                <span id="gpu-role-6" class="text-[11px] font-mono text-emerald-400">Attn 1/8 + Exp 192-223</span>
+              </div>
+              <div class="space-y-1.5 text-xs">
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span id="gpu-layer-type-6">Attention Weights</span>
+                    <span id="gpu-attn-stat-6" class="text-blue-400 font-mono">1/8 Sharded (TP)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-attn-bar-6" class="bg-blue-500 h-full rounded-full transition-all duration-300" style="width: 25%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>MoE Experts</span>
+                    <span id="gpu-exp-stat-6" class="text-emerald-400 font-mono">32 Intact (192..223)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-exp-bar-6" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 45%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>KV Cache Free</span>
+                    <span class="text-amber-400 font-mono">~5.03M Tok (FP8)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div class="bg-amber-500 h-full rounded-full" style="width: 30%;"></div>
+                  </div>
+                </div>
+              </div>
+              <div id="gpu-status-badge-6" class="mt-2 text-[11px] text-center py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                Active · 0.75 routed exp/tok
+              </div>
+            </div>
+
+            <!-- GPU 7 -->
+            <div id="gpu-card-7" class="gpu-box card-panel border border-gray-800 rounded-xl p-3 shadow-sm transition-all space-y-2">
+              <div class="flex items-center justify-between border-b border-gray-800 pb-1.5">
+                <span class="font-bold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  GPU 7 (B200)
+                </span>
+                <span id="gpu-role-7" class="text-[11px] font-mono text-emerald-400">Attn 1/8 + Exp 224-255</span>
+              </div>
+              <div class="space-y-1.5 text-xs">
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span id="gpu-layer-type-7">Attention Weights</span>
+                    <span id="gpu-attn-stat-7" class="text-blue-400 font-mono">1/8 Sharded (TP)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-attn-bar-7" class="bg-blue-500 h-full rounded-full transition-all duration-300" style="width: 25%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>MoE Experts</span>
+                    <span id="gpu-exp-stat-7" class="text-emerald-400 font-mono">32 Intact (224..255)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div id="gpu-exp-bar-7" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 45%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[11px] text-gray-400 mb-0.5">
+                    <span>KV Cache Free</span>
+                    <span class="text-amber-400 font-mono">~5.03M Tok (FP8)</span>
+                  </div>
+                  <div class="w-full content-panel rounded-full h-2 overflow-hidden">
+                    <div class="bg-amber-500 h-full rounded-full" style="width: 30%;"></div>
+                  </div>
+                </div>
+              </div>
+              <div id="gpu-status-badge-7" class="mt-2 text-[11px] text-center py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                Active · 0.75 routed exp/tok
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rules of Thumb Deep Dive (Slide 24) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          <div class="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 space-y-2">
+            <div class="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
+              <span>✅</span> Reach for it when (ควรเลือกใช้เมื่อไร)
+            </div>
+            <ul id="knife-pros" class="space-y-1.5 text-xs text-gray-200 list-disc list-inside"></ul>
+          </div>
+
+          <div class="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 space-y-2">
+            <div class="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+              <span>⚠️</span> Think twice when (ต้องระวังเมื่อใด)
+            </div>
+            <ul id="knife-cons" class="space-y-1.5 text-xs text-gray-200 list-disc list-inside"></ul>
+          </div>
+        </div>
+
+        <!-- Talk Role Callout -->
+        <div id="knife-talk-role" class="content-panel border border-gray-800 rounded-xl p-4 text-xs flex items-start gap-3">
+          <span class="text-base">🎙️</span>
+          <div>
+            <span class="font-bold text-white">Role in Ray Summit 2026 Talk:</span>
+            <span id="knife-talk-text" class="text-gray-400 ml-1">
+              Used in Strategy A (TEP8) — the winning latency & throughput shape on a single 8× B200 machine (2,209 tok/s).
+            </span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: STRATEGIES A–D (TESTED SHAPES ON 8× B200) -->
+    <!-- ========================================================================= -->
+    <section id="tab-strategies" class="space-y-6 hidden">
+      <!-- Strategy Selector Buttons -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <!-- Strategy A -->
+        <button onclick="selectStrategy('A')" id="strat-btn-A"
+          class="strat-btn text-left p-4 rounded-xl border-2 border-emerald-500 bg-emerald-500/10 transition-all shadow-md">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">Strategy A</span>
+            <span class="text-xs font-mono font-bold text-emerald-400">2,209 tok/s</span>
+          </div>
+          <div class="font-bold text-sm">TEP8 (1 Node Winner)</div>
+          <div class="text-gray-400 text-xs mt-1">Sharded Attention (TP8) + 32 Intact Experts/GPU. Fastest single answer!</div>
+        </button>
+
+        <!-- Strategy B -->
+        <button onclick="selectStrategy('B')" id="strat-btn-B"
+          class="strat-btn text-left p-4 rounded-xl border border-gray-800 card-panel hover:border-blue-500 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-500/15 text-blue-400">Strategy B</span>
+            <span class="text-xs font-mono font-bold text-blue-400">1,634 tok/s</span>
+          </div>
+          <div class="font-bold text-sm">DP8×EP + DSpark</div>
+          <div class="text-gray-400 text-xs mt-1">Published reference recipe. Replicated attention + MegaMoE + DSpark (k=7).</div>
+        </button>
+
+        <!-- Strategy C -->
+        <button onclick="selectStrategy('C')" id="strat-btn-C"
+          class="strat-btn text-left p-4 rounded-xl border border-gray-800 card-panel hover:border-amber-500 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400">Strategy C</span>
+            <span class="text-xs font-mono font-bold text-amber-400">~1,700 tok/s ⚠️</span>
+          </div>
+          <div class="font-bold text-sm">P/D Disaggregation</div>
+          <div class="text-gray-400 text-xs mt-1">4× B200 Prefill (TP4) + 4× B200 Decode (DP4×EP). NIXL cache handoff.</div>
+        </button>
+
+        <!-- Strategy D -->
+        <button onclick="selectStrategy('D')" id="strat-btn-D"
+          class="strat-btn text-left p-4 rounded-xl border border-gray-800 card-panel hover:border-purple-500 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-purple-500/15 text-purple-400">Strategy D</span>
+            <span class="text-xs font-mono font-bold text-purple-400">4,647 tok/s 🏆</span>
+          </div>
+          <div class="font-bold text-sm">Whole Replicas (2 Nodes)</div>
+          <div class="text-gray-400 text-xs mt-1">Scale-out winner: 2× 8-GPU nodes running Strategy A. 2.10× of single node!</div>
+        </button>
+      </div>
+
+      <!-- Strategy Detail Container -->
+      <div class="card-panel border rounded-2xl p-5 shadow-sm space-y-6">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="strat-badge" class="px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400">
+                Strategy A · TEP8
+              </span>
+              <h2 id="strat-title" class="font-bold text-lg text-white">
+                The Latency & Throughput Shape (Single Node Winner)
+              </h2>
+            </div>
+            <p id="strat-desc" class="text-xs sm:text-sm text-gray-400 mt-1">
+              รันบน 1 Node (8× B200) เดียวกัน Attention หั่นแบบ TP8 และ MoE ใช้ EP8 (GPU ละ 32 experts เต็ม) ไม่ต้อง Replicate Attention เหมือน DP8
+            </p>
+          </div>
+
+          <!-- Strategy B Specific Toggle for DSpark -->
+          <div id="dspark-toggle-container" class="hidden flex items-center gap-3 content-panel border border-gray-800 p-2.5 rounded-xl text-xs">
+            <span class="text-gray-400 font-medium">DSpark Speculative Decoding:</span>
+            <button onclick="toggleDSpark()" id="dspark-btn" 
+              class="px-3 py-1 rounded-lg font-bold transition-all bg-emerald-500 text-white flex items-center gap-1.5 shadow-sm">
+              <span>⚡ ON (k=7)</span>
+              <span class="text-[11px] font-mono opacity-90">1,634 tok/s</span>
+            </button>
+          </div>
+
+          <!-- Strategy C Specific Demo Bug Warning & Test button -->
+          <div id="pd-test-container" class="hidden flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-xs">
+            <span class="text-amber-400 font-bold">⚠️ Live Demo Bug Test:</span>
+            <button onclick="simulateBugTest()" 
+              class="px-3 py-1 rounded-lg bg-amber-500 text-black font-semibold hover:bg-amber-400 transition-all flex items-center gap-1">
+              <span>🧪 Run "2 + 2" Prompt</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Strategy Topology View -->
+        <div class="content-panel border border-gray-800 rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-400">
+              Cluster Architecture & Data Flow Topology
+            </span>
+            <span id="strat-comm-tag" class="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">
+              Zero Inter-Node GPU Chatter · Pure NVLink-5
+            </span>
+          </div>
+
+          <div id="strat-topology-view" class="p-4 rounded-xl card-panel border border-gray-800 min-h-[220px] flex flex-col justify-center"></div>
+
+          <!-- Strategy C Live Bug Alert -->
+          <div id="strat-c-bug-alert" class="hidden bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-rose-400 font-bold text-sm flex items-center gap-2">
+                <span>🚨</span> Live-Demo Lesson from Ray Summit: "Fast junk is still junk"
+              </span>
+              <span class="text-xs font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300">vLLM v0.27.1 Silent Bug</span>
+            </div>
+            <p class="text-xs text-gray-200 leading-relaxed">
+              ในงาน Live Demo Strategy C ทำ Throughput ได้สูงถึง <strong class="text-rose-400">~1,700 tok/s</strong> แต่เนื่องจากบอร์ด 8 GPUs ถูกแบ่งเป็น 4+4 ทำให้ Prefill Pool ต้องรันที่ <strong class="text-rose-400">TP4</strong> ซึ่งบน vLLM v0.27.1 มี silent bug เมื่อถามคำถามง่ายๆ เช่น <em>"what is 2 + 2"</em> โมเดลจะตอบกลับมาเป็น <strong>ตัวอักษรขยะ (garbage output)</strong>!
+            </p>
+            <div class="text-xs text-rose-300 font-semibold bg-black/30 p-2.5 rounded-lg border border-rose-500/20">
+              💡 <strong>Production Recommendation:</strong> Disaggregation is a pattern, not a cluster size! หากจะใช้ P/D ควรกระจายข้าม 2 เครื่อง (16 GPUs) เพื่อให้ทั้ง Prefill และ Decode ได้ใช้ <span class="text-white font-mono bg-rose-900/50 px-1 py-0.5 rounded">TP8</span> ที่ทดสอบแล้วว่าถูกต้องสมบูรณ์ 100%.
+            </div>
+          </div>
+        </div>
+
+        <!-- Strategy Metrics Snapshot -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+          <div class="content-panel border border-gray-800 rounded-xl p-3">
+            <div class="text-gray-400 text-xs mb-1">Aggregate Throughput (32 Concurrency)</div>
+            <div id="strat-metric-agg" class="text-xl md:text-2xl font-extrabold text-emerald-400 font-mono">2,209 tok/s</div>
+            <div id="strat-metric-agg-sub" class="text-[11px] text-gray-400 mt-0.5">Highest on 1 node</div>
+          </div>
+
+          <div class="content-panel border border-gray-800 rounded-xl p-3">
+            <div class="text-gray-400 text-xs mb-1">Single Stream Speed</div>
+            <div id="strat-metric-single" class="text-xl md:text-2xl font-extrabold text-blue-400 font-mono">140.0 tok/s</div>
+            <div class="text-[11px] text-gray-400 mt-0.5">2.12× faster than Strat B</div>
+          </div>
+
+          <div class="content-panel border border-gray-800 rounded-xl p-3">
+            <div class="text-gray-400 text-xs mb-1">Time to First Token (TTFT p50)</div>
+            <div id="strat-metric-ttft" class="text-xl md:text-2xl font-extrabold text-purple-400 font-mono">0.141 s</div>
+            <div class="text-[11px] text-gray-400 mt-0.5">Single request latency</div>
+          </div>
+
+          <div class="content-panel border border-gray-800 rounded-xl p-3">
+            <div class="text-gray-400 text-xs mb-1">Time Per Output Token (TPOT p50)</div>
+            <div id="strat-metric-tpot" class="text-xl md:text-2xl font-extrabold text-amber-400 font-mono">6.62 ms</div>
+            <div class="text-[11px] text-gray-400 mt-0.5">Generation latency</div>
+          </div>
+        </div>
+
+        <!-- Insights -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="content-panel border border-gray-800 rounded-xl p-4 space-y-2">
+            <div class="font-bold text-xs uppercase tracking-wider text-blue-400">
+              💡 Technical Insight & Architecture Behavior
+            </div>
+            <p id="strat-deep-insight" class="text-xs text-gray-400 leading-relaxed">
+              ใน Sparse MoE (DeepSeek-V4-Flash) มีเพียง 6 จาก 256 routed experts เท่านั้นที่ทำงานต่อ 1 token. Strategy A จัดการ Attention ด้วย TP8 ทำให้การคำนวณเบามาก และให้แต่ละ GPU ถือ 32 experts แบบครบถ้วน การส่ง Token ข้าม GPU เกิดขึ้นผ่าน 1.8 TB/s NVLink โดยไม่ต้อง Replicate Attention weights 8 สำเนาเหมือน DP8
+            </p>
+          </div>
+
+          <div class="content-panel border border-gray-800 rounded-xl p-4 space-y-2">
+            <div class="font-bold text-xs uppercase tracking-wider text-purple-400">
+              ⚙️ vLLM CLI Flag Signature
+            </div>
+            <pre id="strat-cli-preview" class="p-2.5 rounded-lg bg-black/40 border border-gray-800 text-[11px] font-mono text-emerald-400 overflow-x-auto">--tensor-parallel-size 8 --enable-expert-parallel</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: BENCHMARK & LATENCY COMPARISON (PAGES 28 & 26) -->
+    <!-- ========================================================================= -->
+    <section id="tab-benchmark" class="space-y-6 hidden">
+      <!-- Long Context & KV Cache Dial (Slide 26) -->
+      <div class="card-panel border rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-amber-500/20 text-amber-400">Slide 26</span>
+              <h2 class="font-bold text-lg text-white">
+                Long Context: The Cache is the Product and the Knobs
+              </h2>
+            </div>
+            <p class="text-xs sm:text-sm text-gray-400 mt-1">
+              หน้าต่างบริบท 1,000,000 tokens มีอยู่จริง แต่หน่วยความจำ HBM คือสิ่งที่คุณต้องจ่าย! ปรับเลื่อน dial ด้านล่างเพื่อดูผลกระทบต่อ KV Cache และ Concurrency
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2 content-panel border border-gray-800 p-1.5 rounded-xl text-xs">
+            <span class="text-gray-400 px-2 font-medium">--max-model-len:</span>
+            <button onclick="setContextDial('256K')" id="dial-btn-256K"
+              class="px-3 py-1.5 rounded-lg font-bold transition-all bg-emerald-600 text-white shadow-sm">
+              256K (Demo)
+            </button>
+            <button onclick="setContextDial('1M')" id="dial-btn-1M"
+              class="px-3 py-1.5 rounded-lg font-bold transition-all text-gray-400 hover:text-white">
+              1M (Native)
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="content-panel border border-gray-800 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-xs text-blue-400">01. FP8 KV + Block-Size 256</span>
+              <span class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">Must Pair</span>
+            </div>
+            <p class="text-xs text-gray-400">
+              ทุกคำสั่งของ Flash ยึดคู่ <code class="text-blue-300 font-mono">--kv-cache-dtype fp8</code> กับ <code class="text-blue-300 font-mono">--block-size 256</code> ห้ามแยกจากกันเด็ดขาด
+            </p>
+            <div class="pt-2 border-t border-gray-800 text-xs font-semibold">
+              Total KV Token Capacity: <span id="dial-kv-tokens" class="text-emerald-400 font-mono font-bold">5,029,381 tokens</span>
+            </div>
+          </div>
+
+          <div class="content-panel border border-gray-800 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-xs text-purple-400">02. FP4 Indexer Cache</span>
+              <span class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400">CSA Attention</span>
+            </div>
+            <p class="text-xs text-gray-400">
+              Sparse attention เก็บ lookup index ไว้คู่กับ KV blocks ใช้ <code class="text-purple-300 font-mono">--attention-config '{"use_fp4_indexer_cache":true}'</code> ย่อเหลือ 4-bit เพื่อประหยัด HBM
+            </p>
+            <div class="pt-2 border-t border-gray-800 text-xs font-semibold">
+              Concurrent Stream Cap: <span id="dial-concurrency" class="text-blue-400 font-mono font-bold">26 streams</span>
+            </div>
+          </div>
+
+          <div class="content-panel border border-gray-800 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-xs text-amber-400">03. Reasoning Output Cap</span>
+              <span class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">Up to 64K Output</span>
+            </div>
+            <p class="text-xs text-gray-400">
+              DeepSeek-V4-Flash มี 3 โหมด reasoning (low, high, max). ที่ระดับ high/max อาจสร้าง token ยาวถึง 64K tokens ซึ่งกิน KV cache อย่างรวดเร็ว ต้องตั้ง cap ต่อ workload
+            </p>
+            <div class="pt-2 border-t border-gray-800 text-xs font-semibold">
+              Window Impact: <span id="dial-impact" class="text-emerald-400 font-mono font-bold">Baseline Concurrency</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Benchmark Table (Page 28) -->
+      <div class="card-panel border rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
+          <div>
+            <h3 class="font-bold text-base text-white">
+              Measured Benchmark Matrix · 8× B200 · vLLM v0.27.1
+            </h3>
+            <p class="text-xs text-gray-400">
+              ข้อมูลเปรียบเทียบจริงจากการทดสอบ live benchmark บนเครื่อง Nscale (Page 28)
+            </p>
+          </div>
+          <span class="text-xs font-mono px-2 py-1 rounded content-panel border border-gray-800 text-gray-400">
+            Load: 32 concurrent (Strat D: 64 concurrent)
+          </span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-gray-800 text-gray-400 font-semibold">
+                <th class="py-3 px-3">Strategy</th>
+                <th class="py-3 px-3">Aggregate (tok/s)</th>
+                <th class="py-3 px-3">Single Speed</th>
+                <th class="py-3 px-3">TTFT p50 (single)</th>
+                <th class="py-3 px-3">TPOT p50 (single)</th>
+                <th class="py-3 px-3">TTFT p95 (load)</th>
+                <th class="py-3 px-3">KV Capacity</th>
+                <th class="py-3 px-3">Hardware Node</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800 font-mono">
+              <tr class="bg-emerald-500/10 hover:bg-emerald-500/15 transition-colors">
+                <td class="py-3 px-3 font-bold text-emerald-400 flex items-center gap-1.5">
+                  <span>★</span> A · TEP8
+                </td>
+                <td class="py-3 px-3 font-extrabold text-emerald-400 text-sm">2,209</td>
+                <td class="py-3 px-3 text-emerald-300 font-semibold">140.0 tok/s</td>
+                <td class="py-3 px-3">0.141 s</td>
+                <td class="py-3 px-3 text-emerald-400 font-bold">6.62 ms</td>
+                <td class="py-3 px-3 text-emerald-400 font-bold">0.709 s</td>
+                <td class="py-3 px-3">5,029,381</td>
+                <td class="py-3 px-3 text-gray-400 font-sans">1 Node (8× B200)</td>
+              </tr>
+
+              <tr class="hover:bg-gray-800/50 transition-colors">
+                <td class="py-3 px-3 font-bold text-blue-400">
+                  B · DP8×EP + DSpark
+                </td>
+                <td class="py-3 px-3 font-extrabold text-blue-400 text-sm">1,634</td>
+                <td class="py-3 px-3 text-blue-300">65.9 tok/s</td>
+                <td class="py-3 px-3">0.193 s</td>
+                <td class="py-3 px-3">14.27 ms</td>
+                <td class="py-3 px-3">0.795 s</td>
+                <td class="py-3 px-3">5,046,561</td>
+                <td class="py-3 px-3 text-gray-400 font-sans">1 Node (8× B200)</td>
+              </tr>
+
+              <tr class="hover:bg-gray-800/50 transition-colors opacity-75">
+                <td class="py-3 px-3 text-gray-400">
+                  B · DP8×EP (No Spec)
+                </td>
+                <td class="py-3 px-3 font-bold text-gray-200">1,358</td>
+                <td class="py-3 px-3">49.5 tok/s</td>
+                <td class="py-3 px-3">-</td>
+                <td class="py-3 px-3">-</td>
+                <td class="py-3 px-3">-</td>
+                <td class="py-3 px-3">5,046,561</td>
+                <td class="py-3 px-3 text-gray-400 font-sans">1 Node (8× B200)</td>
+              </tr>
+
+              <tr class="bg-amber-500/10 hover:bg-amber-500/15 transition-colors">
+                <td class="py-3 px-3 font-bold text-amber-400 flex items-center gap-1">
+                  <span>⚠️</span> C · P/D (TP4+DP4)
+                </td>
+                <td class="py-3 px-3 font-bold text-amber-400">~1,700 <span class="text-[10px] text-rose-400">(Bug)</span></td>
+                <td class="py-3 px-3 text-rose-400 font-sans">Garbage Out</td>
+                <td class="py-3 px-3">-</td>
+                <td class="py-3 px-3">-</td>
+                <td class="py-3 px-3">-</td>
+                <td class="py-3 px-3">Split Pools</td>
+                <td class="py-3 px-3 text-gray-400 font-sans">1 Node (4+4 GPUs)</td>
+              </tr>
+
+              <tr class="bg-purple-500/10 hover:bg-purple-500/15 transition-colors">
+                <td class="py-3 px-3 font-bold text-purple-400 flex items-center gap-1.5">
+                  <span>🏆</span> D · Replicas (2 Nodes)
+                </td>
+                <td class="py-3 px-3 font-extrabold text-purple-400 text-sm">4,647</td>
+                <td class="py-3 px-3 text-purple-300 font-semibold">140.0 tok/s</td>
+                <td class="py-3 px-3">0.145 s</td>
+                <td class="py-3 px-3 font-bold text-purple-300">7.45 ms</td>
+                <td class="py-3 px-3">1.031 s <span class="text-[10px] text-gray-400">(64 con)</span></td>
+                <td class="py-3 px-3">5,029,381 /rep</td>
+                <td class="py-3 px-3 text-purple-400 font-sans font-semibold">2 Nodes (16× B200)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Comparative Visual Bar -->
+        <div class="pt-4 border-t border-gray-800 space-y-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-gray-400">
+            Visual Throughput Benchmark Comparison (Aggregate Output tok/s)
+          </div>
+
+          <div class="space-y-1 text-xs">
+            <div class="flex justify-between font-semibold">
+              <span class="text-purple-400">Strategy D (2 Nodes · 2× TEP8 Replicas)</span>
+              <span class="font-mono text-purple-400">4,647 tok/s (2.10× scale-out)</span>
+            </div>
+            <div class="w-full content-panel rounded-full h-3.5 overflow-hidden">
+              <div class="bg-gradient-to-r from-purple-600 to-purple-400 h-full rounded-full transition-all duration-500" style="width: 100%;"></div>
+            </div>
+          </div>
+
+          <div class="space-y-1 text-xs">
+            <div class="flex justify-between font-semibold">
+              <span class="text-emerald-400">Strategy A (1 Node · TEP8 Winner)</span>
+              <span class="font-mono text-emerald-400">2,209 tok/s (1.00× single node base)</span>
+            </div>
+            <div class="w-full content-panel rounded-full h-3.5 overflow-hidden">
+              <div class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 47.5%;"></div>
+            </div>
+          </div>
+
+          <div class="space-y-1 text-xs">
+            <div class="flex justify-between font-semibold">
+              <span class="text-amber-400">Strategy C (1 Node · P/D Disagg) <span class="text-rose-400">[Bug on 2+2]</span></span>
+              <span class="font-mono text-amber-400">~1,700 tok/s</span>
+            </div>
+            <div class="w-full content-panel rounded-full h-3.5 overflow-hidden">
+              <div class="bg-amber-500/60 h-full rounded-full transition-all duration-500" style="width: 36.5%;"></div>
+            </div>
+          </div>
+
+          <div class="space-y-1 text-xs">
+            <div class="flex justify-between font-semibold">
+              <span class="text-blue-400">Strategy B (1 Node · DP8×EP + DSpark k=7)</span>
+              <span class="font-mono text-blue-400">1,634 tok/s (+1.20× boost via DSpark)</span>
+            </div>
+            <div class="w-full content-panel rounded-full h-3.5 overflow-hidden">
+              <div class="bg-blue-500 h-full rounded-full transition-all duration-500" style="width: 35.1%;"></div>
+            </div>
+          </div>
+
+          <div class="space-y-1 text-xs">
+            <div class="flex justify-between font-semibold">
+              <span class="text-gray-400">Strategy B (1 Node · DP8×EP Speculator OFF)</span>
+              <span class="font-mono text-gray-400">1,358 tok/s</span>
+            </div>
+            <div class="w-full content-panel rounded-full h-3.5 overflow-hidden">
+              <div class="bg-gray-600 h-full rounded-full transition-all duration-500" style="width: 29.2%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: DECISION WIZARD & vLLM CLI / YAML GENERATOR (PAGE 24 & 27) -->
+    <!-- ========================================================================= -->
+    <section id="tab-wizard" class="space-y-6 hidden">
+      <div class="card-panel border rounded-2xl p-5 shadow-sm space-y-5">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-400">Page 24 Rules of Thumb</span>
+            <h2 class="font-bold text-lg text-white">
+              Interactive Cheat Sheet & Architecture Selector
+            </h2>
+          </div>
+          <p class="text-xs sm:text-sm text-gray-400">
+            เลือกเป้าหมายระบบของคุณเพื่อรับคำแนะนำกลยุทธ์ที่เหมาะสมที่สุด พร้อมคำสั่ง <code class="font-mono text-blue-400">vllm serve</code> และ KubeRay YAML สำหรับนำไปใช้จริง
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div onclick="selectGoal('A')" id="goal-card-A"
+            class="goal-card cursor-pointer p-4 rounded-xl border-2 border-emerald-500 bg-emerald-500/10 transition-all space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sm text-white">1. ต่ำสุดใน 1 Node (Lowest Latency & Peak Speed)</span>
+              <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">Recommended ★</span>
+            </div>
+            <p class="text-xs text-gray-400">
+              ต้องการการตอบสนองที่เร็วที่สุดสำหรับ Single Request และ Throughput รวมสูงสุดบนเครื่องเดี่ยว 8× B200 (2,209 tok/s)
+            </p>
+          </div>
+
+          <div onclick="selectGoal('B')" id="goal-card-B"
+            class="goal-card cursor-pointer p-4 rounded-xl border border-gray-800 card-panel hover:border-blue-500 transition-all space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sm text-white">2. ตาม Published Reference Recipe + Speculative Decoding</span>
+              <span class="text-xs px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 font-bold">Reference</span>
+            </div>
+            <p class="text-xs text-gray-400">
+              ต้องการรันสูตรมาตรฐานอย่างเป็นทางการ DeepSeek + DP8×EP MegaMoE พร้อม DSpark draft speculator เร่งความเร็ว
+            </p>
+          </div>
+
+          <div onclick="selectGoal('C')" id="goal-card-C"
+            class="goal-card cursor-pointer p-4 rounded-xl border border-gray-800 card-panel hover:border-amber-500 transition-all space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sm text-white">3. แยก Compute-bound Prefill ออกจาก Memory-bound Decode</span>
+              <span class="text-xs px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold">Disaggregation</span>
+            </div>
+            <p class="text-xs text-gray-400">
+              ต้องการจัดการ Workload ที่มี Prompt ยาวมาก หรือ Decode นานเป็นพิเศษด้วยการแยก Prefill/Decode pools ผ่าน NIXL
+            </p>
+          </div>
+
+          <div onclick="selectGoal('D')" id="goal-card-D"
+            class="goal-card cursor-pointer p-4 rounded-xl border border-gray-800 card-panel hover:border-purple-500 transition-all space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sm text-white">4. Scale-Out ข้ามเครื่อง รองรับ Production Traffic มหาศาล</span>
+              <span class="text-xs px-2 py-0.5 rounded bg-purple-500/15 text-purple-400 font-bold">Production Scale</span>
+            </div>
+            <p class="text-xs text-gray-400">
+              ต้องการขยายเกิน 1 เครื่อง ปลอดภัย ไร้ปัญหา Pipeline Bubbles และไม่มี Inter-Node GPU sync bottleneck (4,647 tok/s)
+            </p>
+          </div>
+        </div>
+
+        <!-- Wizard Recommendation Output -->
+        <div class="content-panel border border-gray-800 rounded-2xl p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Recommended Strategy & Reasoning:</span>
+              <h3 id="wizard-recom-title" class="text-base font-bold text-emerald-400 mt-0.5">
+                Strategy A: TEP8 (Tensor + Expert Parallel on Single 8× B200 Node)
+              </h3>
+            </div>
+            <span id="wizard-recom-badge" class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-400">
+              Latency: 0.141s · Speed: 140 tok/s
+            </span>
+          </div>
+
+          <p id="wizard-recom-explanation" class="text-xs text-gray-200 leading-relaxed">
+            สำหรับเครื่อง 8× B200 ภายใน NVLink domain เดียวกัน Strategy A คือผู้ชนะเด็ดขาด: หั่น Attention ด้วย TP8 และให้ MoE experts กระจายแบบ EP8 (GPU ละ 32 ตัวสมบูรณ์) ทำให้ได้ความเร็ว 2,209 tok/s ชนะ Strategy B ที่เป็นสูตรอ้างอิงถึง 35%!
+          </p>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-xs text-blue-400 flex items-center gap-1.5">
+                <span>💻</span> Exact vLLM CLI Command (Pinned to vLLM v0.27.1)
+              </span>
+              <button onclick="copyToClipboard('wizard-cli-code')" 
+                class="px-2.5 py-1 rounded card-panel hover:bg-gray-700 border border-gray-800 text-xs text-gray-300 transition-all">
+                Copy Command
+              </button>
+            </div>
+            <pre id="wizard-cli-code" class="p-4 rounded-xl bg-black/60 border border-gray-800 font-mono text-xs text-emerald-400 overflow-x-auto leading-relaxed">vllm serve /models/DeepSeek-V4-Flash-0731 \
+  --port 8000 \
+  --distributed-executor-backend ray \
+  --served-model-name deepseek-ai/DeepSeek-V4-Flash-0731 \
+  --trust-remote-code \
+  --kv-cache-dtype fp8 \
+  --block-size 256 \
+  --tensor-parallel-size 8 \
+  --enable-expert-parallel \
+  --moe-backend deep_gemm_mega_moe \
+  --attention-config '{"use_fp4_indexer_cache":true}' \
+  --tokenizer-mode deepseek_v4 \
+  --tool-call-parser deepseek_v4 --enable-auto-tool-choice \
+  --reasoning-parser deepseek_v4 \
+  --max-model-len 262144</pre>
+          </div>
+
+          <div class="space-y-2 pt-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-xs text-purple-400 flex items-center gap-1.5">
+                <span>☸️</span> KubeRay RayService YAML (serveConfig V2)
+              </span>
+              <button onclick="copyToClipboard('wizard-yaml-code')" 
+                class="px-2.5 py-1 rounded card-panel hover:bg-gray-700 border border-gray-800 text-xs text-gray-300 transition-all">
+                Copy YAML
+              </button>
+            </div>
+            <pre id="wizard-yaml-code" class="p-4 rounded-xl bg-black/60 border border-gray-800 font-mono text-xs text-purple-300 overflow-x-auto leading-relaxed">apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: deepseek-v4-flash-service
+spec:
+  serveConfigV2: |
+    applications:
+      - name: llm
+        import_path: ray.serve.llm:build_openai_app
+        args:
+          llm_configs:
+            - model_loading_config:
+                model_id: deepseek-ai/DeepSeek-V4-Flash-0731
+                model_source: /models/DeepSeek-V4-Flash-0731
+              engine_kwargs: {
+                tensor_parallel_size: 8,
+                enable_expert_parallel: true,
+                kv_cache_dtype: fp8,
+                block_size: 256,
+                max_model_len: 262144
+              }</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 30 Key Takeaways -->
+      <div class="card-panel border rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400">Page 30</span>
+          <h3 class="font-bold text-base text-white">
+            What to Remember When You Build This Yourself (4 Golden Rules + 2 Lessons)
+          </h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div class="space-y-1.5 p-3 rounded-xl content-panel border border-gray-800">
+            <div class="font-bold text-blue-400">01. Match the strategy to the wiring</div>
+            <p class="text-gray-400">
+              เก็บ parallelism ที่พูดคุยกันเยอะ (expert routing, cache handoff) ไว้ภายใน NVLink domain เท่านั้น ระหว่างเครื่อง (RoCE/InfiniBand) ให้ส่งเฉพาะสิ่งที่เบา: pipeline activations หรือ whole requests
+            </p>
+          </div>
+
+          <div class="space-y-1.5 p-3 rounded-xl content-panel border border-gray-800">
+            <div class="font-bold text-emerald-400">02. Disaggregation is a pattern, not a cluster size</div>
+            <p class="text-gray-400">
+              P/D ทำงานได้แม้กระทั่งบนเครื่องเดี่ยว: 2 pools และ connector. เริ่มต้นทดสอบบนเครื่องเล็กก่อน ปรับจูน pool ตามคอขวดของมันเอง (Compute vs Memory-bandwidth)
+            </p>
+          </div>
+
+          <div class="space-y-1.5 p-3 rounded-xl content-panel border border-gray-800">
+            <div class="font-bold text-purple-400">03. The cache is still the product at 1M</div>
+            <p class="text-gray-400">
+              แม้ CSA + HCA จะช่วยลดขนาดลง ~10× แต่หน่วยความจำที่เหลือยังเป็นหน้าที่ของคุณ: FP8 KV + block-size 256, FP4 indexer cache, และการจำกัด output tokens สำหรับ deep thinking
+            </p>
+          </div>
+
+          <div class="space-y-1.5 p-3 rounded-xl content-panel border border-gray-800">
+            <div class="font-bold text-amber-400">04. The flags ARE the architecture</div>
+            <p class="text-gray-400">
+              ทุก deployment shape ถูกกำหนดด้วย flag ของ <code class="font-mono text-amber-300">vllm serve</code> เท่านั้น! โหลดน้ำหนักโมเดล 167 GB ครั้งเดียวลง Shared PVC (RWX) การเปลี่ยน shape เป็นเพียงแค่ 1 คำสั่ง <code class="font-mono text-amber-300">kubectl apply</code>
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300">
+          ⚠️ <strong>Lesson from what went wrong:</strong> Benchmark performance AND outputs — fast junk is still junk! Pin the exact engine version: เวอร์ชัน vLLM ต่างกันความเร็วต่างกันถึง 45% และพบบั๊ก silent output บน TP4 ใน v0.27.1!
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-xs text-gray-500 pt-6 pb-4 border-t border-gray-800">
+      <p>Ray Summit 2026 Recap Presentation Analysis · Serving DeepSeek-V4-Flash on Nscale 8× B200</p>
+      <p class="mt-1">Built with vLLM v0.27.1, Ray Serve & Tailwind CSS · Ready for GitHub Pages deployment</p>
+    </footer>
+
+  </div>
+
+  <!-- JavaScript for Application Logic & Animations -->
+  <script>
+    // Theme Management
+    let isDarkMode = true;
+    function toggleTheme() {
+      isDarkMode = !isDarkMode;
+      const html = document.documentElement;
+      const icon = document.getElementById('theme-icon');
+      const text = document.getElementById('theme-text');
+      if (isDarkMode) {
+        html.classList.add('dark');
+        html.classList.remove('light');
+        icon.textContent = '☀️';
+        text.textContent = 'Light Mode';
+      } else {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        icon.textContent = '🌙';
+        text.textContent = 'Dark Mode';
+      }
+      setTimeout(renderInterconnectLines, 100);
+    }
+
+    // Knife Data Models
+    const KNIVES = {
+      TP: {
+        badge: 'TP (Tensor Parallel)',
+        title: 'Slices EVERY Layer Across All GPUs',
+        desc: 'ผ่าแบ่ง Matrix Multiplication ของทุกเลเยอร์ (ทั้ง Attention และ Expert FFN) ข้าม 8 GPUs โดยแต่ละ GPU เก็บเพียงชิ้นส่วนย่อยของทุกอย่าง ต้องการ All-Reduce ต่อเนื่อง',
+        network: 'Intra-Node NVLink (1.8 TB/s Mandatory)',
+        networkColor: 'text-blue-400',
+        attnStat: '1/8 Sharded (TP)',
+        attnBar: '25%',
+        expStat: '1/8 Sharded (All-Reduce)',
+        expBar: '20%',
+        pros: [
+          'Latency-sensitive serving ภายใน NVLink domain เดียว (ตอบสนองคำขอเดี่ยวได้เร็วที่สุด)',
+          'Dense layers ถูก shard อย่างสะอาดสมบูรณ์แบบ',
+          'Fastest single-request time-to-first-token (TTFT) และ latency ต่ำมาก'
+        ],
+        cons: [
+          'ใช้ memory ของ KV cache สูงสุดในบางโครงสร้าง (แต่บน 8× B200 ใกล้เคียง DP: 5.03M vs 5.05M tokens)',
+          'ไม่เหมาะกับ Long Context ที่หิวน้ำหนัก KV มากหากลิงก์ช้ากว่า NVLink',
+          'ห้ามใช้บนลิงก์เครือข่ายที่ช้ากว่า NVLink หรือขนาด attention heads ที่หารไม่ลงตัว'
+        ],
+        roleTalk: 'ใช้ใน Attention slicing ของ Strategy A และ Prefill pool ของ Strategy C (TP4).',
+        commTag: 'Constant All-Reduce Synchronization (Every Layer)'
+      },
+      TEP: {
+        badge: 'TEP (Tensor + Expert Parallel) ★ WINNER',
+        title: 'Slices Attention, Keeps Experts Whole',
+        desc: 'หั่น Attention เหมือน TP ข้าม 8 GPUs แต่ให้แต่ละ GPU ถือ MoE Experts ทั้งตัวแบบครบถ้วน (256 routed experts ÷ 8 GPUs = 32 intact experts ต่อ GPU) วิ่งเต็มสปีดโดยไม่ต้อง shard matrix',
+        network: 'Intra-Node NVLink (1.8 TB/s)',
+        networkColor: 'text-emerald-400',
+        attnStat: '1/8 Sharded (TP8)',
+        attnBar: '25%',
+        expStat: '32 Intact Experts/GPU',
+        expBar: '50%',
+        pros: [
+          'ออกแบบมาสำหรับ Sparse MoE อย่าง DeepSeek-V4-Flash โดยเฉพาะ (6 active routed experts จาก 256)',
+          'แต่ละ Expert ทำงานเต็มสปีด (Full Speed) โดยไม่มี overhead จากการ shard matrix multiplication',
+          'ลดปริมาณ Cross-GPU traffic มหาศาลเมื่อเทียบกับ Pure TP'
+        ],
+        cons: [
+          'ไม่เหมาะกับ Dense models (เพราะไม่มี MoE experts ให้ shard)',
+          'Expert routing ต้องอยู่ใน NVLink domain เดียวกันเท่านั้น (ห้ามข้าม RoCE network)',
+          'อาจเกิด Imbalanced load ระหว่าง experts หากไม่มี Expert Load Balancer (EPLB)'
+        ],
+        roleTalk: 'Strategy A (TEP8) — ผู้ชนะด้าน Latency และ Throughput สูงสุดบน 1 เครื่อง 8× B200 (2,209 tok/s)!',
+        commTag: 'Attention TP All-Reduce + Local Expert Computation'
+      },
+      PP: {
+        badge: 'PP (Pipeline Parallel)',
+        title: 'Cuts Model Vertically into Layer Stages',
+        desc: 'ตัดโมเดลในแนวตั้งเป็นขั้นตอน (Assembly line): เช่น เครื่องที่ 1 รันเลเยอร์ครึ่งแรก (1..N/2) และเครื่องที่ 2 รันเลเยอร์ครึ่งหลัง (N/2+1..N) ส่ง activation ผ่าน RoCE/InfiniBand',
+        network: 'Inter-Node Backend (RoCE / InfiniBand)',
+        networkColor: 'text-amber-400',
+        attnStat: 'Full Attention (Layers 1..N/2)',
+        attnBar: '50%',
+        expStat: 'All Experts (in stage)',
+        expBar: '50%',
+        pros: [
+          'เหมาะสำหรับข้าม Backend Network (InfiniBand / RoCE) ระหว่างเครื่องต่าง NVLink domain',
+          'ช่วยปลดปล่อย HBM memory เมื่อทำ TP บนเครื่องเดียวจนเต็มขีดจำกัดแล้ว',
+          'ปริมาณข้อมูลที่ส่งระหว่างเครื่องเบามาก (เฉพาะ Stage activations ไม่ใช่ weight matrix)'
+        ],
+        cons: [
+          'เกิด Pipeline Bubbles รุนแรงมากเมื่อ Batch size / Concurrency ต่ำ (เครื่องครึ่งหลังนั่งว่างรอเครื่องแรก)',
+          'ไม่เหมาะกับงาน Low-batch หรือ Latency-critical traffic',
+          'ต้องใช้ Batch สูงมากเพื่อเติม pipeline ให้เต็ม'
+        ],
+        roleTalk: 'อยู่นอกเหนือขอบเขตการหั่นโมเดลเดี่ยวในการทดสอบครั้งนี้ เพราะ Strategy D เลือกข้ามเครื่องด้วย Whole Replicas แทน เพื่อหลีกเลี่ยง Pipeline Bubbles โดยสิ้นเชิง!',
+        commTag: 'Point-to-Point Activations across Network'
+      },
+      DEP: {
+        badge: 'DEP (Data + Expert Parallel)',
+        title: 'Full Attention Copy + Sharded Experts',
+        desc: 'ทุก GPU เก็บ Attention เต็มชุด (Data Parallel: แต่ละ GPU รองรับ Request แยกกันอิสระ) และแบ่งกันถือ 32 Experts จาก 256 ตัว ข้อมูล token วิ่งไปหา GPU ที่ถือ expert ด้วย All-to-All',
+        network: 'Intra-Node NVLink All-to-All',
+        networkColor: 'text-purple-400',
+        attnStat: 'Full Replicated (DP8)',
+        attnBar: '40%',
+        expStat: '32 Experts (All-to-All)',
+        expBar: '45%',
+        pros: [
+          'ให้ Throughput-per-dollar สูงสุดในทางทฤษฎีในคลัสเตอร์ขนาดใหญ่มาก',
+          'เหมาะมากสำหรับใช้เป็น Decode Pool ในระบบ Prefill/Decode Disaggregation',
+          'เป็นสูตรอ้างอิงที่เผยแพร่อย่างเป็นทางการ (Published Reference Recipe)'
+        ],
+        cons: [
+          'Single-user Latency ช้าลงชัดเจน เพราะติดคอขวด All-to-All Dispatch/Combine',
+          'บนเครื่องขนาดเล็ก การทำ Attention สำเนา 8 ชุดทำให้เปลือง HBM โดยไม่จำเป็น',
+          'ผลทดสอบจริงบน 8× B200: แพ้ TEP8 ขาดลอย (1,634 tok/s vs 2,209 tok/s)!'
+        ],
+        roleTalk: 'Strategy B (DP8×EP) — สูตร Reference ของ DeepSeek และใช้ใน Decode Pool ของ Strategy C (DP4×EP).',
+        commTag: 'All-to-All Dispatch & Combine across 8 GPUs'
+      },
+      DCP: {
+        badge: 'DCP (Decode Context Parallelism)',
+        title: 'Shards Decode KV Cache across TP Ranks',
+        desc: 'กระจายหน่วยความจำ Decode KV Cache ข้าม GPU ใน TP domain สำหรับการรับมือกับบริบทขนาดยาวระดับ 1M tokens โดยเฉพาะ ช่วยแก้ปัญหาข้อจำกัด HBM ต่อ GPU ในช่วง decode ยาว',
+        network: 'Intra-Node NVLink',
+        networkColor: 'text-cyan-400',
+        attnStat: '1/8 Sharded + KV Sliced',
+        attnBar: '30%',
+        expStat: 'MoE Sharded / Whole',
+        expBar: '40%',
+        pros: [
+          'เหมาะสำหรับงาน Decode-heavy และ Very Long Context (1M tokens window)',
+          'ช่วยกระจายภาระหน่วยความจำ KV cache ข้าม TP ranks ได้อย่างมีประสิทธิภาพ',
+          'ช่วยให้รัน Concurrency สูงขึ้นได้เมื่อแต่ละ Session มี Context ขนาดยักษ์'
+        ],
+        cons: [
+          'ไม่เหมาะกับเวิร์กโหลดที่เป็น Prefill-heavy',
+          'ขนาดของ DCP จะต้องหารขนาดของ TP ได้ลงตัวเสมอ (DCP size must divide TP size)',
+          'เพิ่ม Overhead ในการจัดการ Indexer และ KV Pointer ข้ามชิป'
+        ],
+        roleTalk: 'ระบุไว้ใน Slide 24 แถวที่ 5 ของ Cheat Sheet สำหรับการจัดการบริบทขนาดยาวแบบเจาะจง.',
+        commTag: 'KV Cache Slicing across TP Ranks'
+      }
+    };
+
+    // Strategy Topologies Data
+    const STRATEGIES = {
+      A: {
+        badge: 'Strategy A · TEP8 (Winner)',
+        title: 'TEP8: The Latency & Single-Node Winner',
+        desc: '1 Node (8× NVIDIA B200) · Attention sharded TP8 + 32 Intact Experts ต่อ GPU (EP8) · ความเร็วพุ่งทะลุ 2,209 tok/s!',
+        commTag: 'Zero Inter-Node GPU Chatter · Pure NVLink-5 (1.8 TB/s)',
+        aggMetric: '2,209 tok/s',
+        aggSub: 'Single node champion (+35% vs Strat B)',
+        singleMetric: '140.0 tok/s',
+        ttftMetric: '0.141 s',
+        tpotMetric: '6.62 ms',
+        insight: 'ใน Sparse MoE (DeepSeek-V4-Flash) มีเพียง 6 จาก 256 routed experts เท่านั้นที่ทำงานต่อ 1 token. Strategy A จัดการ Attention ด้วย TP8 ทำให้การคำนวณเบามาก และให้แต่ละ GPU ถือ 32 experts แบบครบถ้วน การส่ง Token ข้าม GPU เกิดขึ้นผ่าน 1.8 TB/s NVLink โดยไม่ต้อง Replicate Attention weights 8 สำเนาเหมือน DP8',
+        cli: `vllm serve /models/DeepSeek-V4-Flash-0731 \\
+  --port 8000 \\
+  --distributed-executor-backend ray \\
+  --tensor-parallel-size 8 \\
+  --enable-expert-parallel \\
+  --kv-cache-dtype fp8 --block-size 256 \\
+  --moe-backend deep_gemm_mega_moe \\
+  --attention-config '{"use_fp4_indexer_cache":true}' \\
+  --max-model-len 262144`,
+        renderTopology: () => `
+          <div class="flex flex-col items-center space-y-3">
+            <div class="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30">
+              1 Machine / Node (8× NVIDIA B200 180GB)
+            </div>
+            <div class="grid grid-cols-4 md:grid-cols-8 gap-2 w-full max-w-4xl">
+              ${[0,1,2,3,4,5,6,7].map(i => `
+                <div class="card-panel border-2 border-emerald-500/60 rounded-xl p-2.5 text-center shadow-sm">
+                  <div class="font-bold text-xs text-emerald-400">GPU ${i}</div>
+                  <div class="text-[10px] text-blue-400 font-mono mt-1">TP8 Attn</div>
+                  <div class="text-[10px] text-emerald-400 font-mono">32 Exp</div>
+                  <div class="mt-1.5 text-[9px] bg-emerald-500/20 text-emerald-300 py-0.5 rounded">Active</div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-400">
+              <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+              <span>Ultra-fast 1.8 TB/s NVLink Crossbar connects all 8 GPUs</span>
+            </div>
+          </div>
+        `
+      },
+      B: {
+        badge: 'Strategy B · DP8×EP + DSpark',
+        title: 'DP8×EP: The Published Reference Recipe',
+        desc: '1 Node (8× B200) · Replicated Attention (DP8) + Sharded Experts (EP8 via deep_gemm_mega_moe) + DSpark Speculator (k=7)',
+        commTag: 'All-to-All Token Dispatch over NVLink',
+        aggMetric: '1,634 tok/s',
+        aggSub: 'DSpark speculator provides +1.20× boost',
+        singleMetric: '65.9 tok/s',
+        ttftMetric: '0.193 s',
+        tpotMetric: '14.27 ms',
+        insight: 'แม้สูตร DP8×EP จะเป็น Reference Recipe จากผู้สร้าง แต่การสำเนา Attention 8 ชุดและพึ่งพา All-to-All ทำให้เกิด Overhead มากกว่า TEP8 บนเครื่อง 8× B200 อย่างไรก็ตาม DSpark Speculative Decoding ช่วยบูสต์ความเร็วขึ้น 20% โดยไม่ต้องโหลดโมเดลแยก!',
+        cli: `vllm serve /models/DeepSeek-V4-Flash-0731 \\
+  --port 8000 \\
+  --distributed-executor-backend ray \\
+  --data-parallel-size 8 \\
+  --enable-expert-parallel \\
+  --moe-backend deep_gemm_mega_moe \\
+  --speculative-config '{"method":"dspark","num_speculative_tokens":7,"draft_sample_method":"greedy"}' \\
+  --kv-cache-dtype fp8 --block-size 256 \\
+  --max-model-len 262144`,
+        renderTopology: () => `
+          <div class="flex flex-col items-center space-y-3">
+            <div class="text-xs font-semibold text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/30">
+              1 Machine / Node (8× NVIDIA B200) · DP8 Attention Copy
+            </div>
+            <div class="grid grid-cols-4 md:grid-cols-8 gap-2 w-full max-w-4xl">
+              ${[0,1,2,3,4,5,6,7].map(i => `
+                <div class="card-panel border-2 border-blue-500/60 rounded-xl p-2.5 text-center shadow-sm">
+                  <div class="font-bold text-xs text-blue-400">GPU ${i}</div>
+                  <div class="text-[10px] text-purple-400 font-mono mt-1">Full DP Attn</div>
+                  <div class="text-[10px] text-emerald-400 font-mono">32 Exp</div>
+                  <div class="mt-1.5 text-[9px] bg-blue-500/20 text-blue-300 py-0.5 rounded">All-to-All</div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="text-xs text-gray-400 flex items-center gap-2">
+              <span class="text-amber-400">⚡ DSpark Speculative Decoding Engine:</span>
+              <span>Draft tokens verified in parallel (k=7)</span>
+            </div>
+          </div>
+        `
+      },
+      C: {
+        badge: 'Strategy C · P/D Disaggregation',
+        title: 'Prefill/Decode Split: 4 GPUs + 4 GPUs over NIXL',
+        desc: 'แยกสถาปัตยกรรมออกเป็น 2 Pools: Prefill Pool (TP4, Compute-bound) + Decode Pool (DP4×EP, Memory-bandwidth-bound) ส่งมอบ Cache ผ่าน NIXL',
+        commTag: 'NIXL Cache Handoff between Pools',
+        aggMetric: '~1,700 tok/s',
+        aggSub: 'Fast throughput BUT invalid outputs on v0.27.1',
+        singleMetric: 'Garbage Out ⚠️',
+        ttftMetric: 'N/A',
+        tpotMetric: 'N/A',
+        insight: 'การแยก Prefill และ Decode ช่วยแก้ปัญหาคอขวดที่แตกต่างกันได้สมบูรณ์แบบ แต่บนเครื่องเดี่ยว 8 GPUs จำเป็นต้องแบ่งเป็น 4+4 ทำให้ Prefill ต้องใช้ TP4 ซึ่งบน vLLM v0.27.1 มี silent bug ตอบคำถามง่ายๆ ผิดเพี้ยน ดังนั้นใน Production จึงควรใช้ P/D ข้าม 2 เครื่องเพื่อใช้ TP8 ทั้งสองฝั่ง!',
+        cli: `# Prefill Pool (Node 1 / GPUs 0-3):
+vllm serve /models/DeepSeek-V4-Flash-0731 --tensor-parallel-size 4 --is-prefill-node ...
+# Decode Pool (Node 1 / GPUs 4-7):
+vllm serve /models/DeepSeek-V4-Flash-0731 --data-parallel-size 4 --enable-expert-parallel ...`,
+        renderTopology: () => `
+          <div class="flex flex-col lg:flex-row items-center justify-center gap-4 w-full">
+            <div class="flex-1 content-panel border border-blue-500/40 rounded-xl p-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-xs text-blue-400">Prefill Pool (TP4 · 4 GPUs)</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">Compute-Bound</span>
+              </div>
+              <div class="grid grid-cols-4 gap-1.5">
+                ${[0,1,2,3].map(i => `
+                  <div class="card-panel p-2 rounded text-center border border-gray-800">
+                    <div class="font-bold text-[11px] text-blue-400">GPU ${i}</div>
+                    <div class="text-[9px] text-gray-400">TP4 Sliced</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="flex flex-col items-center justify-center px-2 py-1 bg-amber-500/10 border border-amber-500/30 rounded-lg text-center">
+              <span class="text-amber-400 font-bold text-xs">NIXL Connector</span>
+              <span class="text-[10px] text-gray-400">Paged KV + FP4 Indexer</span>
+              <span class="text-amber-400 text-sm">➡️</span>
+            </div>
+
+            <div class="flex-1 content-panel border border-emerald-500/40 rounded-xl p-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-xs text-emerald-400">Decode Pool (DP4×EP · 4 GPUs)</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Memory-Bound</span>
+              </div>
+              <div class="grid grid-cols-4 gap-1.5">
+                ${[4,5,6,7].map(i => `
+                  <div class="card-panel p-2 rounded text-center border border-gray-800">
+                    <div class="font-bold text-[11px] text-emerald-400">GPU ${i}</div>
+                    <div class="text-[9px] text-gray-400">DP4×EP</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `
+      },
+      D: {
+        badge: 'Strategy D · Whole Replicas 🏆',
+        title: 'Strategy D: Whole Replicas (The Scale-Out Champion)',
+        desc: '2 Nodes (2 × 8× B200 = 16 GPUs) · แต่ละ Node รัน Strategy A (TEP8) สมบูรณ์แบบหลัง Ray Serve / KubeRay Service เดียวกัน · 4,647 tok/s!',
+        commTag: 'Zero Inter-Node GPU Chatter · HTTP Request Routing Only',
+        aggMetric: '4,647 tok/s',
+        aggSub: '2.10× linear scaling of Strategy A',
+        singleMetric: '140.0 tok/s',
+        ttftMetric: '0.145 s',
+        tpotMetric: '7.45 ms',
+        insight: 'แทนที่จะใช้ Pipeline Parallelism (PP) ข้ามเครื่องจนเกิด Bubble Loss หรือส่ง Weight ซิงค์กันข้าม RoCE... Strategy D ใช้วิธีรัน Full Engine (TEP8) ประจำแต่ละเครื่อง Mount อ่านไฟล์ 167 GB จาก Shared ReadWriteMany PVC เดียวกัน ไม่มี Cross-Machine GPU traffic ใดๆ ทั้งสิ้น!',
+        cli: `# Deploy via KubeRay RayService (serveConfigV2)
+# Replicas = 2 (แต่ละ Replica ใช้ 8 GPUs รัน Strategy A เต็มรูปแบบ)
+kubectl apply -f ray-service-strategy-d.yaml`,
+        renderTopology: () => `
+          <div class="flex flex-col md:flex-row items-center justify-center gap-4 w-full">
+            <div class="flex-1 content-panel border-2 border-purple-500/40 rounded-xl p-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-xs text-purple-400">Node 1 (8× B200) · Replica #1</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">TEP8 Winner Shape</span>
+              </div>
+              <div class="grid grid-cols-4 gap-1.5">
+                ${[0,1,2,3,4,5,6,7].map(i => `
+                  <div class="card-panel p-1.5 rounded text-center border border-gray-800">
+                    <div class="font-bold text-[10px] text-purple-400">G${i}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="text-center px-3 py-2 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+              <div class="font-bold text-xs text-purple-300">Ray Serve Router</div>
+              <div class="text-[10px] text-gray-400">Round-Robin / Load Balancing</div>
+              <div class="text-xs text-purple-400 mt-1">Shared RWX PVC (167 GB)</div>
+            </div>
+
+            <div class="flex-1 content-panel border-2 border-purple-500/40 rounded-xl p-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-xs text-purple-400">Node 2 (8× B200) · Replica #2</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">TEP8 Winner Shape</span>
+              </div>
+              <div class="grid grid-cols-4 gap-1.5">
+                ${[8,9,10,11,12,13,14,15].map(i => `
+                  <div class="card-panel p-1.5 rounded text-center border border-gray-800">
+                    <div class="font-bold text-[10px] text-purple-400">G${i}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `
+      }
+    };
+
+    // Wizard Goals Configuration
+    const GOALS = {
+      A: {
+        title: 'Strategy A: TEP8 (Tensor + Expert Parallel on Single 8× B200 Node)',
+        badge: 'Latency: 0.141s · Speed: 140 tok/s · Throughput: 2,209 tok/s',
+        explanation: 'สำหรับเครื่องเดี่ยว 8× B200 ภายใน NVLink domain เดียวกัน Strategy A คือผู้ชนะเด็ดขาด: หั่น Attention ด้วย TP8 และให้ MoE experts กระจายแบบ EP8 (GPU ละ 32 ตัวสมบูรณ์) ทำให้ได้ความเร็ว 2,209 tok/s ชนะ Strategy B ที่เป็นสูตรอ้างอิงถึง 35%!',
+        cli: `vllm serve /models/DeepSeek-V4-Flash-0731 \\
+  --port 8000 \\
+  --distributed-executor-backend ray \\
+  --served-model-name deepseek-ai/DeepSeek-V4-Flash-0731 \\
+  --trust-remote-code \\
+  --kv-cache-dtype fp8 \\
+  --block-size 256 \\
+  --tensor-parallel-size 8 \\
+  --enable-expert-parallel \\
+  --moe-backend deep_gemm_mega_moe \\
+  --attention-config '{"use_fp4_indexer_cache":true}' \\
+  --tokenizer-mode deepseek_v4 \\
+  --tool-call-parser deepseek_v4 --enable-auto-tool-choice \\
+  --reasoning-parser deepseek_v4 \\
+  --max-model-len 262144`,
+        yaml: `apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: deepseek-v4-flash-strategy-a
+spec:
+  serveConfigV2: |
+    applications:
+      - name: llm
+        import_path: ray.serve.llm:build_openai_app
+        args:
+          llm_configs:
+            - model_loading_config:
+                model_id: deepseek-ai/DeepSeek-V4-Flash-0731
+                model_source: /models/DeepSeek-V4-Flash-0731
+              engine_kwargs: {
+                tensor_parallel_size: 8,
+                enable_expert_parallel: true,
+                kv_cache_dtype: fp8,
+                block_size: 256,
+                max_model_len: 262144
+              }`
+      },
+      B: {
+        title: 'Strategy B: DP8×EP + DSpark (The Published Reference Recipe)',
+        badge: 'Throughput: 1,634 tok/s (+20% with DSpark)',
+        explanation: 'หากคุณต้องการทำตามสูตรทางการของ DeepSeek บน DP8 พร้อมใช้งาน DSpark built-in speculative decoding (k=7) เพื่อเพิ่ม throughput จาก 1,358 เป็น 1,634 tok/s โดยไม่ต้องโหลดโมเดลตัวที่สอง',
+        cli: `vllm serve /models/DeepSeek-V4-Flash-0731 \\
+  --port 8000 \\
+  --distributed-executor-backend ray \\
+  --served-model-name deepseek-ai/DeepSeek-V4-Flash-0731 \\
+  --trust-remote-code \\
+  --kv-cache-dtype fp8 \\
+  --block-size 256 \\
+  --data-parallel-size 8 \\
+  --enable-expert-parallel \\
+  --moe-backend deep_gemm_mega_moe \\
+  --speculative-config '{"method":"dspark","num_speculative_tokens":7,"draft_sample_method":"greedy"}' \\
+  --attention-config '{"use_fp4_indexer_cache":true}' \\
+  --tokenizer-mode deepseek_v4 \\
+  --tool-call-parser deepseek_v4 --enable-auto-tool-choice \\
+  --reasoning-parser deepseek_v4 \\
+  --max-model-len 262144`,
+        yaml: `apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: deepseek-v4-flash-strategy-b
+spec:
+  serveConfigV2: |
+    applications:
+      - name: llm
+        import_path: ray.serve.llm:build_openai_app
+        args:
+          llm_configs:
+            - model_loading_config:
+                model_id: deepseek-ai/DeepSeek-V4-Flash-0731
+                model_source: /models/DeepSeek-V4-Flash-0731
+              engine_kwargs: {
+                data_parallel_size: 8,
+                enable_expert_parallel: true,
+                moe_backend: deep_gemm_mega_moe,
+                speculative_config: '{"method":"dspark","num_speculative_tokens":7,"draft_sample_method":"greedy"}',
+                kv_cache_dtype: fp8,
+                block_size: 256,
+                max_model_len: 262144
+              }`
+      },
+      C: {
+        title: 'Strategy C: P/D Disaggregation across 2 Nodes (Best Practice)',
+        badge: 'Recommended: 2 Nodes (16 GPUs) to preserve TP8',
+        explanation: 'สำหรับงานที่ต้องการแยก Prefill (Compute-bound) และ Decode (Memory-bound) แนะนำให้ใช้ 2 Nodes แยกกัน เพื่อให้ทั้งสอง Pool ทำงานด้วย TP8 ที่สมบูรณ์แบบ หลีกเลี่ยง silent bug ของ TP4 บนเครื่องเดี่ยว!',
+        cli: `# Prefill Node (8 GPUs - TP8):
+vllm serve /models/DeepSeek-V4-Flash-0731 --tensor-parallel-size 8 --role prefill --nixl-port 9000 ...
+
+# Decode Node (8 GPUs - DP8xEP):
+vllm serve /models/DeepSeek-V4-Flash-0731 --data-parallel-size 8 --enable-expert-parallel --role decode --nixl-port 9000 ...`,
+        yaml: `# KubeRay Multi-Cluster Disaggregated Prefill & Decode Topology
+# Handing off Paged KV Cache and FP4 Sparse-Attention Indexer over NIXL`
+      },
+      D: {
+        title: 'Strategy D: Whole Replicas via Ray Serve (Production Scale-Out Champion)',
+        badge: 'Scale: 4,647 tok/s (2.10× Linear Boost)',
+        explanation: 'วิธีขยายระบบที่ปลอดภัยและมีประสิทธิภาพสูงสุด: ตั้งค่า Kubernetes RayService ให้รัน Strategy A (TEP8) ประจำแต่ละเครื่อง 8× B200 และกระจาย HTTP traffic ผ่าน Ray Serve โดยไม่มีการส่ง GPU memory ข้ามเครื่องให้เกิดคอขวด!',
+        cli: `# Strategy D mounts the 167GB checkpoint from a shared ReadWriteMany (RWX) PVC
+# Switching strategies or scaling out is a single kubectl apply!
+kubectl scale rayservice deepseek-v4-flash-strategy-d --replicas=2`,
+        yaml: `apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: deepseek-v4-flash-strategy-d
+spec:
+  serveConfigV2: |
+    applications:
+      - name: llm
+        import_path: ray.serve.llm:build_openai_app
+        route_prefix: /v1
+        args:
+          llm_configs:
+            - model_loading_config:
+                model_id: deepseek-ai/DeepSeek-V4-Flash-0731
+                model_source: /mnt/shared-pvc/DeepSeek-V4-Flash-0731
+              engine_kwargs: {
+                tensor_parallel_size: 8,
+                enable_expert_parallel: true,
+                kv_cache_dtype: fp8,
+                block_size: 256,
+                max_model_len: 262144
+              }
+  rayClusterConfig:
+    workerGroupSpecs:
+      - groupName: b200-group
+        replicas: 2
+        template:
+          spec:
+            containers:
+              - name: ray-worker
+                resources:
+                  limits:
+                    nvidia.com/gpu: 8`
+      }
+    };
+
+    // State Variables
+    let currentTab = 'knives';
+    let currentKnife = 'TEP';
+    let currentStrategy = 'A';
+    let currentGoal = 'A';
+    let isDSparkOn = true;
+    let currentContext = '256K';
+
+    // Switch Tabs
+    function switchTab(tabId) {
+      currentTab = tabId;
+      ['knives', 'strategies', 'benchmark', 'wizard'].forEach(id => {
+        const sec = document.getElementById(`tab-${id}`);
+        const btn = document.getElementById(`tab-btn-${id}`);
+        if (id === tabId) {
+          sec.classList.remove('hidden');
+          btn.className = 'tab-btn px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 bg-emerald-600 text-white shadow-sm';
+        } else {
+          sec.classList.add('hidden');
+          btn.className = 'tab-btn px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 content-panel text-gray-400 hover:text-white border border-gray-800';
+        }
+      });
+      if (tabId === 'knives') {
+        renderInterconnectLines();
+      }
+    }
+
+    // Select Knife
+    function selectKnife(knifeKey) {
+      currentKnife = knifeKey;
+      const k = KNIVES[knifeKey];
+
+      ['TP', 'TEP', 'PP', 'DEP', 'DCP'].forEach(key => {
+        const btn = document.getElementById(`knife-btn-${key}`);
+        if (key === knifeKey) {
+          btn.className = 'knife-btn text-left p-3.5 rounded-xl border-2 border-emerald-500 bg-emerald-500/10 transition-all shadow-md';
+        } else {
+          btn.className = 'knife-btn text-left p-3.5 rounded-xl border border-gray-800 card-panel hover:border-blue-500 transition-all';
+        }
+      });
+
+      document.getElementById('knife-badge').textContent = k.badge;
+      document.getElementById('knife-title').textContent = k.title;
+      document.getElementById('knife-desc').textContent = k.desc;
+      document.getElementById('knife-network-tag').textContent = k.network;
+      document.getElementById('knife-network-tag').className = `font-semibold ${k.networkColor}`;
+      document.getElementById('interconnect-state').textContent = `Active: ${k.commTag}`;
+      document.getElementById('knife-talk-text').textContent = k.roleTalk;
+
+      const prosList = document.getElementById('knife-pros');
+      prosList.innerHTML = k.pros.map(p => `<li>${p}</li>`).join('');
+      const consList = document.getElementById('knife-cons');
+      consList.innerHTML = k.cons.map(c => `<li>${c}</li>`).join('');
+
+      const ppControl = document.getElementById('pp-bubble-control');
+      if (knifeKey === 'PP') {
+        ppControl.classList.remove('hidden');
+      } else {
+        ppControl.classList.add('hidden');
+      }
+
+      for (let i = 0; i < 8; i++) {
+        const attnStat = document.getElementById(`gpu-attn-stat-${i}`);
+        const attnBar = document.getElementById(`gpu-attn-bar-${i}`);
+        const expStat = document.getElementById(`gpu-exp-stat-${i}`);
+        const expBar = document.getElementById(`gpu-exp-bar-${i}`);
+        const badge = document.getElementById(`gpu-status-badge-${i}`);
+        const card = document.getElementById(`gpu-card-${i}`);
+        const role = document.getElementById(`gpu-role-${i}`);
+
+        if (attnStat) attnStat.textContent = k.attnStat;
+        if (attnBar) attnBar.style.width = k.attnBar;
+        if (expStat) expStat.textContent = k.expStat;
+        if (expBar) expBar.style.width = k.expBar;
+
+        if (knifeKey === 'PP') {
+          if (i < 4) {
+            role.textContent = `Stage 1 (L1..L30)`;
+            badge.textContent = `Processing Stage 1`;
+            badge.className = `mt-2 text-[11px] text-center py-1 rounded bg-blue-500/20 text-blue-300 font-mono`;
+            card.classList.remove('opacity-40');
+          } else {
+            role.textContent = `Stage 2 (L31..L60)`;
+            badge.textContent = `Waiting / Bubble Slot`;
+            badge.className = `mt-2 text-[11px] text-center py-1 rounded bg-amber-500/20 text-amber-300 font-mono bubble-anim`;
+            card.classList.add('opacity-40');
+          }
+        } else {
+          card.classList.remove('opacity-40');
+          role.textContent = knifeKey === 'DEP' ? 'Full Attn + Exp ' + (i*32) + '-' + (i*32+31) : 'Attn 1/8 + Exp ' + (i*32) + '-' + (i*32+31);
+          badge.textContent = 'Active · 0.75 routed exp/tok';
+          badge.className = 'mt-2 text-[11px] text-center py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono';
+        }
+      }
+
+      renderInterconnectLines();
+    }
+
+    // Update PP Concurrency slider
+    function updatePPConcurrency(val) {
+      document.getElementById('pp-concurrency-val').textContent = `${val} Requests`;
+      const status = document.getElementById('pp-bubble-status');
+      const v = parseInt(val);
+      if (v <= 2) {
+        status.innerHTML = `⚡ Bubble Idle Rate: <strong>~75% idle time!</strong> GPUs 4-7 must wait while GPUs 0-3 finish Stage 1 layers.`;
+        for (let i = 4; i < 8; i++) {
+          document.getElementById(`gpu-card-${i}`).classList.add('opacity-40');
+          document.getElementById(`gpu-status-badge-${i}`).textContent = 'Idle Bubble Slot';
+        }
+      } else if (v <= 8) {
+        status.innerHTML = `⚡ Bubble Idle Rate: <strong>~30% idle time.</strong> Assembly line is partially filling up.`;
+        for (let i = 4; i < 8; i++) {
+          document.getElementById(`gpu-card-${i}`).classList.remove('opacity-40');
+          document.getElementById(`gpu-status-badge-${i}`).textContent = 'Partially Filled (Stage 2)';
+        }
+      } else {
+        status.innerHTML = `✅ Bubble Idle Rate: <strong>&lt; 5% idle time.</strong> Full pipeline assembly line at 32 concurrent requests!`;
+        for (let i = 4; i < 8; i++) {
+          document.getElementById(`gpu-card-${i}`).classList.remove('opacity-40');
+          document.getElementById(`gpu-status-badge-${i}`).textContent = 'Full Active (Stage 2)';
+        }
+      }
+    }
+
+    // Select Strategy
+    function selectStrategy(stratKey) {
+      currentStrategy = stratKey;
+      const s = STRATEGIES[stratKey];
+
+      ['A', 'B', 'C', 'D'].forEach(key => {
+        const btn = document.getElementById(`strat-btn-${key}`);
+        if (key === stratKey) {
+          btn.className = 'strat-btn text-left p-4 rounded-xl border-2 border-emerald-500 bg-emerald-500/10 transition-all shadow-md';
+        } else {
+          btn.className = 'strat-btn text-left p-4 rounded-xl border border-gray-800 card-panel hover:border-blue-500 transition-all';
+        }
+      });
+
+      document.getElementById('strat-badge').textContent = s.badge;
+      document.getElementById('strat-title').textContent = s.title;
+      document.getElementById('strat-desc').textContent = s.desc;
+      document.getElementById('strat-comm-tag').textContent = s.commTag;
+      document.getElementById('strat-metric-agg').textContent = s.aggMetric;
+      document.getElementById('strat-metric-agg-sub').textContent = s.aggSub;
+      document.getElementById('strat-metric-single').textContent = s.singleMetric;
+      document.getElementById('strat-metric-ttft').textContent = s.ttftMetric;
+      document.getElementById('strat-metric-tpot').textContent = s.tpotMetric;
+      document.getElementById('strat-deep-insight').textContent = s.insight;
+      document.getElementById('strat-cli-preview').textContent = s.cli;
+
+      const dsparkBox = document.getElementById('dspark-toggle-container');
+      const pdBox = document.getElementById('pd-test-container');
+      const cBugAlert = document.getElementById('strat-c-bug-alert');
+
+      if (stratKey === 'B') {
+        dsparkBox.classList.remove('hidden');
+      } else {
+        dsparkBox.classList.add('hidden');
+      }
+
+      if (stratKey === 'C') {
+        pdBox.classList.remove('hidden');
+        cBugAlert.classList.remove('hidden');
+      } else {
+        pdBox.classList.add('hidden');
+        cBugAlert.classList.add('hidden');
+      }
+
+      document.getElementById('strat-topology-view').innerHTML = s.renderTopology();
+    }
+
+    // Toggle DSpark
+    function toggleDSpark() {
+      isDSparkOn = !isDSparkOn;
+      const btn = document.getElementById('dspark-btn');
+      const agg = document.getElementById('strat-metric-agg');
+      const single = document.getElementById('strat-metric-single');
+      const sub = document.getElementById('strat-metric-agg-sub');
+
+      if (isDSparkOn) {
+        btn.innerHTML = `<span>⚡ ON (k=7)</span> <span class="text-[11px] font-mono opacity-90">1,634 tok/s</span>`;
+        btn.className = 'px-3 py-1 rounded-lg font-bold transition-all bg-emerald-500 text-white flex items-center gap-1.5 shadow-sm';
+        agg.textContent = '1,634 tok/s';
+        single.textContent = '65.9 tok/s';
+        sub.textContent = 'DSpark speculator provides +1.20× boost (+20%)';
+      } else {
+        btn.innerHTML = `<span>OFF (Plain)</span> <span class="text-[11px] font-mono opacity-90">1,358 tok/s</span>`;
+        btn.className = 'px-3 py-1 rounded-lg font-bold transition-all bg-gray-700 text-white flex items-center gap-1.5';
+        agg.textContent = '1,358 tok/s';
+        single.textContent = '49.5 tok/s';
+        sub.textContent = 'No speculative decoding';
+      }
+    }
+
+    // Simulate Bug Test
+    function simulateBugTest() {
+      alert(`🧪 Ray Summit Live Demo Test:\n\nQuery: "What is 2 + 2?"\n\n- Strategy A (TEP8): Returns "4"\n- Strategy B (DP8xEP): Returns "4"\n- Strategy C (TP4 Prefill on vLLM v0.27.1): Returns "$#&@! NaN token_id_mismatch"\n\nLesson: Always verify model outputs alongside throughput! Fast junk is still junk.`);
+    }
+
+    // Set Context Dial
+    function setContextDial(ctx) {
+      currentContext = ctx;
+      const btn256 = document.getElementById('dial-btn-256K');
+      const btn1M = document.getElementById('dial-btn-1M');
+      const kvSpan = document.getElementById('dial-kv-tokens');
+      const conSpan = document.getElementById('dial-concurrency');
+      const impSpan = document.getElementById('dial-impact');
+
+      if (ctx === '256K') {
+        btn256.className = 'px-3 py-1.5 rounded-lg font-bold transition-all bg-emerald-600 text-white shadow-sm';
+        btn1M.className = 'px-3 py-1.5 rounded-lg font-bold transition-all text-gray-400 hover:text-white';
+        kvSpan.textContent = '5,029,381 tokens';
+        conSpan.textContent = '26 concurrent streams';
+        impSpan.textContent = 'Baseline Concurrency';
+        impSpan.className = 'text-emerald-400 font-mono font-bold';
+      } else {
+        btn1M.className = 'px-3 py-1.5 rounded-lg font-bold transition-all bg-emerald-600 text-white shadow-sm';
+        btn256.className = 'px-3 py-1.5 rounded-lg font-bold transition-all text-gray-400 hover:text-white';
+        kvSpan.textContent = '15,600,000 tokens';
+        conSpan.textContent = '19 concurrent streams';
+        impSpan.textContent = '1.3× Concurrency Cost';
+        impSpan.className = 'text-amber-400 font-mono font-bold';
+      }
+    }
+
+    // Select Wizard Goal
+    function selectGoal(goalKey) {
+      currentGoal = goalKey;
+      const g = GOALS[goalKey];
+
+      ['A', 'B', 'C', 'D'].forEach(k => {
+        const card = document.getElementById(`goal-card-${k}`);
+        if (k === goalKey) {
+          card.className = 'goal-card cursor-pointer p-4 rounded-xl border-2 border-emerald-500 bg-emerald-500/10 transition-all space-y-1 shadow-sm';
+        } else {
+          card.className = 'goal-card cursor-pointer p-4 rounded-xl border border-gray-800 card-panel hover:border-blue-500 transition-all space-y-1';
+        }
+      });
+
+      document.getElementById('wizard-recom-title').textContent = g.title;
+      document.getElementById('wizard-recom-badge').textContent = g.badge;
+      document.getElementById('wizard-recom-explanation').textContent = g.explanation;
+      document.getElementById('wizard-cli-code').textContent = g.cli;
+      document.getElementById('wizard-yaml-code').textContent = g.yaml;
+    }
+
+    // Copy to Clipboard
+    function copyToClipboard(elementId) {
+      const text = document.getElementById(elementId).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Copied to clipboard successfully!');
+      }).catch(() => {
+        alert('Failed to copy. Please manually select and copy.');
+      });
+    }
+
+    // Render SVG Lines
+    function renderInterconnectLines() {
+      const svg = document.getElementById('bus-svg');
+      if (!svg) return;
+      svg.innerHTML = '';
+
+      const container = svg.getBoundingClientRect();
+      const coords = [];
+      for (let i = 0; i < 8; i++) {
+        const card = document.getElementById(`gpu-card-${i}`);
+        if (!card) return;
+        const rect = card.getBoundingClientRect();
+        coords.push({
+          x: rect.left - container.left + rect.width / 2,
+          y: rect.top - container.top + rect.height / 2
+        });
+      }
+
+      if (currentKnife === 'TP') {
+        for (let i = 0; i < 7; i++) {
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', coords[i].x);
+          line.setAttribute('y1', coords[i].y);
+          line.setAttribute('x2', coords[i+1].x);
+          line.setAttribute('y2', coords[i+1].y);
+          line.setAttribute('stroke', '#3b82f6');
+          line.setAttribute('stroke-width', '2');
+          line.setAttribute('class', 'flow-line-fast');
+          svg.appendChild(line);
+        }
+      } else if (currentKnife === 'TEP') {
+        for (let i = 0; i < 7; i++) {
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', coords[i].x);
+          line.setAttribute('y1', coords[i].y);
+          line.setAttribute('x2', coords[i+1].x);
+          line.setAttribute('y2', coords[i+1].y);
+          line.setAttribute('stroke', '#10b981');
+          line.setAttribute('stroke-width', '2');
+          line.setAttribute('class', 'flow-line');
+          svg.appendChild(line);
+        }
+      } else if (currentKnife === 'DEP') {
+        for (let i = 0; i < 8; i += 2) {
+          for (let j = 1; j < 8; j += 2) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', coords[i].x);
+            line.setAttribute('y1', coords[i].y);
+            line.setAttribute('x2', coords[j].x);
+            line.setAttribute('y2', coords[j].y);
+            line.setAttribute('stroke', '#a855f7');
+            line.setAttribute('stroke-width', '1');
+            line.setAttribute('opacity', '0.4');
+            line.setAttribute('class', 'flow-line');
+            svg.appendChild(line);
+          }
+        }
+      } else if (currentKnife === 'PP') {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', coords[3].x);
+        line.setAttribute('y1', coords[3].y);
+        line.setAttribute('x2', coords[4].x);
+        line.setAttribute('y2', coords[4].y);
+        line.setAttribute('stroke', '#f59e0b');
+        line.setAttribute('stroke-width', '4');
+        line.setAttribute('class', 'flow-line');
+        svg.appendChild(line);
+      }
+    }
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      selectKnife('TEP');
+      selectStrategy('A');
+      selectGoal('A');
+      setTimeout(renderInterconnectLines, 200);
+    });
+
+    window.addEventListener('resize', renderInterconnectLines);
+  </script>
+</body>
+</html>

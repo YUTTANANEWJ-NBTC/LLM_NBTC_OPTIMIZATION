@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="th" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vLLM Explainer v3 | Qwen 3.8 27B on 24× A100 / A40 vGPUs (2,000 Users · 30 Concurrent)</title>
+
+  <!-- OpenGraph Metadata for Social & GitHub Sharing -->
+  <meta property="og:title" content="vLLM Explainer v3 — Qwen 3.8 27B on 24× A100/A40 vGPUs">
+  <meta property="og:description" content="Production capacity planning & 3D architecture simulation for Qwen 3.8 27B serving 2,000 users at 30 concurrent requests on 24 vGPUs.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#f8fafc">
+
+  <!-- Google Fonts: Inter, Noto Sans Thai, JetBrains Mono, Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans Thai', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+            brand: ['Space Grotesk', 'Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Dot Grid Background inspired by Georgia Tech Transformer Explainer */
+    .bg-dot-grid-light {
+      background-color: #f8fafc;
+      background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+      background-size: 24px 24px;
+    }
+    .dark .bg-dot-grid-light {
+      background-color: #0b0f19;
+      background-image: radial-gradient(#1e293b 1.2px, transparent 1.2px);
+    }
+
+    /* 3D Perspective Canvas Container */
+    .perspective-stage {
+      perspective: 1200px;
+      perspective-origin: 50% 45%;
+    }
+    .preserve-3d {
+      transform-style: preserve-3d;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* 3D Layer Stack Shadows */
+    .layer-card-3d {
+      box-shadow: -4px 6px 16px -2px rgba(15, 23, 42, 0.08), -1px 2px 4px -1px rgba(15, 23, 42, 0.04);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .dark .layer-card-3d {
+      box-shadow: -4px 6px 16px -2px rgba(0, 0, 0, 0.4), -1px 2px 4px -1px rgba(0, 0, 0, 0.2);
+    }
+    .layer-card-3d:hover {
+      transform: translateY(-3px) translateZ(10px);
+      box-shadow: -8px 12px 24px -4px rgba(15, 23, 42, 0.14);
+    }
+
+    /* Floating Guide Card Glassmorphism */
+    .guide-card-float {
+      backdrop-filter: blur(12px);
+      box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(226, 232, 240, 0.8);
+    }
+    .dark .guide-card-float {
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(30, 41, 59, 0.8);
+    }
+
+    /* Subtle custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
+  </style>
+</head>
+<body class="bg-dot-grid-light text-slate-800 dark:text-slate-100 antialiased min-h-screen text-xs md:text-sm selection:bg-indigo-500 selection:text-white">
+
+  <!-- Main App Shell -->
+  <div class="max-w-[1720px] mx-auto p-2 sm:p-4 md:p-6 space-y-4">
+
+    <!-- ========================================================================= -->
+    <!-- 3-WAY VERSION SWITCHER TOP BANNER (v1 ⇄ v2 ⇄ v3) -->
+    <!-- ========================================================================= -->
+    <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 rounded-2xl px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+      <div class="flex items-center gap-2">
+        <span class="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-bold text-[10px] uppercase tracking-wider">VERSIONS</span>
+        <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">สลับดูการจำลองและสถาปัตยกรรมโมเดล:</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+        <!-- v1 link -->
+        <a href="index.html" class="px-3 py-1.5 rounded-lg font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50">
+          🖥️ v1: Cluster View (DeepSeek 284B)
+        </a>
+        <!-- v2 link -->
+        <a href="index_v2.html" class="px-3 py-1.5 rounded-lg font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50">
+          🧊 v2: 3D Explainer (DeepSeek 284B MoE)
+        </a>
+        <!-- v3 active -->
+        <a href="index_v3.html" class="px-3 py-1.5 rounded-lg font-bold transition-all bg-indigo-600 text-white shadow-sm flex items-center gap-1.5">
+          <span>⚡ v3: Qwen 27B · 24× A100/A40 (2,000 Users)</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        </a>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TOP NAVIGATION BAR (TRANSFORMER EXPLAINER HEADER STYLE) -->
+    <!-- ========================================================================= -->
+    <header class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 rounded-2xl px-4 py-3 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-4 sticky top-2 z-50">
+      
+      <!-- Logo & Model Details -->
+      <div class="flex items-center gap-3 w-full xl:w-auto justify-between xl:justify-start">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-lg shadow-md shadow-indigo-500/20 font-brand">
+            Q
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-brand font-black text-base sm:text-lg tracking-tight bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                QWEN 3.8 27B PRODUCTION SIMULATOR
+              </span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800">
+                2,000 Users Plan
+              </span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800">
+                24 vGPUs
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">
+              Qwen 3.8 27B (Dense · GQA 48Q:8KV · 64 Layers) on 24× NVIDIA A100 / A40 vGPUs
+            </p>
+          </div>
+        </div>
+
+        <!-- Dark/Light Theme Toggle (Mobile) -->
+        <button onclick="toggleTheme()" class="xl:hidden p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+          <span id="theme-icon-m">☀️</span>
+        </button>
+      </div>
+
+      <!-- Token Stream Interactive Control (Transformer Explainer prompt bar) -->
+      <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 w-full xl:max-w-2xl shadow-inner">
+        <span class="text-slate-400 text-xs font-mono font-bold shrink-0">Input Prompt:</span>
+        <div class="flex items-center gap-1.5 overflow-x-auto py-1 flex-1 font-mono text-xs" id="prompt-tokens-bar">
+          <!-- Token badges rendered via JS -->
+        </div>
+        <button onclick="stepNextToken()" class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm flex items-center gap-1 shrink-0 transition-all">
+          <span>Step Token</span>
+          <span class="text-[11px]">▶</span>
+        </button>
+        <button onclick="toggleAutoPlay()" id="btn-autoplay" class="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs shrink-0 transition-all">
+          <span>Auto ⏯</span>
+        </button>
+      </div>
+
+      <!-- 3D Stage Controls & Theme Button -->
+      <div class="flex items-center gap-3 w-full xl:w-auto justify-end">
+        <!-- 3D Explode Layers Slider -->
+        <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+          <span class="text-slate-500 dark:text-slate-400 font-medium">แยกชิ้น 3D:</span>
+          <input type="range" id="slider-explode" min="0" max="100" value="35" oninput="update3DExplode(this.value)" class="w-16 sm:w-20 accent-indigo-600 cursor-pointer">
+          <span id="explode-val" class="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">35%</span>
+        </div>
+
+        <!-- 3D Rotate X Slider -->
+        <div class="hidden sm:flex items-center gap-2 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+          <span class="text-slate-500 dark:text-slate-400 font-medium">มุม 3D:</span>
+          <input type="range" id="slider-rotate" min="-30" max="45" value="15" oninput="update3DRotation(this.value)" class="w-16 accent-indigo-600 cursor-pointer">
+          <span id="rotate-val" class="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">15°</span>
+        </div>
+
+        <!-- Theme Toggle Button (Desktop) -->
+        <button onclick="toggleTheme()" class="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-all shadow-sm">
+          <span id="theme-icon">☀️</span>
+          <span id="theme-text">Light Mode</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ========================================================================= -->
+    <!-- REAL-WORLD CAPACITY CONTROLS: 2,000 USERS · 30 CONCURRENT · 24 vGPUs -->
+    <!-- ========================================================================= -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <!-- 1. Active Concurrency Slider -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-sm space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-slate-600 dark:text-slate-300">👥 Concurrency (จาก 2,000 คน):</span>
+          <span id="concurrency-val-badge" class="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+            30 Concurrent
+          </span>
+        </div>
+        <input type="range" id="slider-concurrency" min="5" max="120" value="30" oninput="updateConcurrency(this.value)" class="w-full accent-emerald-500 cursor-pointer">
+        <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+          <span>5 Req (Off-peak)</span>
+          <span class="font-bold text-emerald-600">30 Req (Working Hours)</span>
+          <span>120 Req (Peak Surge)</span>
+        </div>
+      </div>
+
+      <!-- 2. Hardware 24-vGPU Fleet Selector -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-sm space-y-1.5">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-slate-600 dark:text-slate-300">🖥️ 24-vGPU Hardware Spec:</span>
+          <span id="hw-interconnect-label" class="font-mono text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">PCIe Gen4 (696 GB/s)</span>
+        </div>
+        <div class="grid grid-cols-3 gap-1">
+          <button onclick="setHardware('A40_48GB')" id="btn-hw-A40_48GB" class="hw-btn px-2 py-1.5 rounded-lg text-xs font-bold transition-all bg-indigo-600 text-white shadow-sm">
+            24× A40 (48GB ★)
+          </button>
+          <button onclick="setHardware('A100_80GB')" id="btn-hw-A100_80GB" class="hw-btn px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-slate-800">
+            24× A100 (80GB)
+          </button>
+          <button onclick="setHardware('VGPU_24GB')" id="btn-hw-VGPU_24GB" class="hw-btn px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-slate-800">
+            24× vGPU (24GB Slice)
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Quantization Precision Selector -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-sm space-y-1.5">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-slate-600 dark:text-slate-300">⚖️ Model Precision & Weights:</span>
+          <span id="weight-size-badge" class="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded">~27 GB (W8A16)</span>
+        </div>
+        <div class="grid grid-cols-3 gap-1">
+          <button onclick="setPrecision('W8A16')" id="btn-prec-W8A16" class="prec-btn px-2 py-1.5 rounded-lg text-xs font-bold transition-all bg-indigo-600 text-white shadow-sm">
+            W8A16 (27 GB ★)
+          </button>
+          <button onclick="setPrecision('BF16')" id="btn-prec-BF16" class="prec-btn px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-slate-800">
+            BF16 (54 GB)
+          </button>
+          <button onclick="setPrecision('INT4')" id="btn-prec-INT4" class="prec-btn px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-slate-800">
+            INT4 (15 GB)
+          </button>
+        </div>
+      </div>
+
+      <!-- 4. Target Architecture Strategy Selector -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-sm space-y-1.5">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-slate-600 dark:text-slate-300">📐 Strategy on 24 vGPUs:</span>
+          <span id="replica-ratio-badge" class="font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400">12 Replicas × TP2</span>
+        </div>
+        <div class="grid grid-cols-4 gap-1">
+          <button onclick="setStrategy('A')" id="btn-strat-A" class="strat-btn px-2 py-1.5 rounded-lg text-xs font-bold transition-all bg-emerald-500 text-white shadow-sm" title="12 Replicas × TP2: Best all-rounder on A40 48GB">
+            12× TP2 ★
+          </button>
+          <button onclick="setStrategy('B')" id="btn-strat-B" class="strat-btn px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-slate-800" title="6 Replicas × TP4: Deep pooled KV cache for 64K-128K RAG">
+            6× TP4
+          </button>
+          <button onclick="setStrategy('C')" id="btn-strat-C" class="strat-btn px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-slate-800" title="24 Replicas × TP1: 1 GPU holds whole model (W8A16 or INT4)">
+            24× TP1
+          </button>
+          <button onclick="setStrategy('D')" id="btn-strat-D" class="strat-btn px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-slate-800" title="Pipeline Parallel / P-D Disaggregation across multi-hosts">
+            P/D & PP
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- REAL-TIME VRAM STATUS & SLA CAPACITY CALCULATOR -->
+    <!-- ========================================================================= -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300">
+            Live SLA & Capacity Calculator for 2,000 Users (30 Concurrent)
+          </span>
+          <span id="oom-alert-badge" class="hidden px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500 text-white animate-bounce">
+            🚨 OUT OF MEMORY (OOM) ALERT!
+          </span>
+        </div>
+        <div class="flex items-center gap-3 text-xs font-mono">
+          <span class="text-slate-400">Load Factor:</span>
+          <span id="load-factor-val" class="font-bold text-indigo-600 dark:text-indigo-400">2.5 Concurrent / Replica</span>
+        </div>
+      </div>
+
+      <!-- Capacity Key Metric Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <!-- Metric 1: VRAM per GPU -->
+        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+          <div class="text-[10px] text-slate-400 font-semibold">VRAM Per vGPU</div>
+          <div id="metric-vram-avail" class="text-base font-extrabold text-slate-800 dark:text-white font-mono mt-0.5">48.0 GB</div>
+          <div id="metric-vram-sub" class="text-[10px] text-slate-500 font-mono">13.5 GB Model + 32.5 GB KV</div>
+        </div>
+
+        <!-- Metric 2: KV Cache Token Capacity -->
+        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+          <div class="text-[10px] text-slate-400 font-semibold">Total KV Cache / Replica</div>
+          <div id="metric-kv-tokens" class="text-base font-extrabold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">~496,000 Tok</div>
+          <div class="text-[10px] text-slate-500 font-mono">FP8 Paged KV Cache</div>
+        </div>
+
+        <!-- Metric 3: Max Context Window per User -->
+        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+          <div class="text-[10px] text-slate-400 font-semibold">Max Context @ 30 Concurrency</div>
+          <div id="metric-max-ctx" class="text-base font-extrabold text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">131,072 Tok</div>
+          <div class="text-[10px] text-emerald-600 font-mono">Full 131K Native Context ★</div>
+        </div>
+
+        <!-- Metric 4: Single User TTFT (Time to First Token) -->
+        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+          <div class="text-[10px] text-slate-400 font-semibold">TTFT p50 (First Token)</div>
+          <div id="metric-ttft" class="text-base font-extrabold text-blue-600 dark:text-blue-400 font-mono mt-0.5">~0.082 s</div>
+          <div class="text-[10px] text-slate-500 font-mono">Sub-100ms instant reply</div>
+        </div>
+
+        <!-- Metric 5: Generation Speed per User -->
+        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+          <div class="text-[10px] text-slate-400 font-semibold">Single Stream Speed</div>
+          <div id="metric-single-speed" class="text-base font-extrabold text-purple-600 dark:text-purple-400 font-mono mt-0.5">~65.0 tok/s</div>
+          <div class="text-[10px] text-slate-500 font-mono">15.4 ms / output token</div>
+        </div>
+
+        <!-- Metric 6: Total 24-vGPU Cluster Throughput -->
+        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+          <div class="text-[10px] text-slate-400 font-semibold">Total 24-vGPU Throughput</div>
+          <div id="metric-cluster-tps" class="text-base font-extrabold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">1,140 tok/s</div>
+          <div class="text-[10px] text-slate-500 font-mono">12 Replicas aggregate</div>
+        </div>
+      </div>
+
+      <!-- VRAM Usage Progress Bar Breakdown -->
+      <div class="space-y-1">
+        <div class="flex justify-between text-[11px] font-mono">
+          <span class="text-slate-500">VRAM Allocation Per vGPU Card:</span>
+          <span id="vram-bar-labels" class="font-semibold text-slate-700 dark:text-slate-300">
+            Model Weights: 13.5 GB (28.1%) | KV Cache Pool: 32.5 GB (67.7%) | Free/Headroom: 2.0 GB (4.2%)
+          </span>
+        </div>
+        <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden flex">
+          <div id="vram-bar-weights" class="bg-indigo-600 h-full transition-all duration-300" style="width: 28.1%;" title="Model Weights"></div>
+          <div id="vram-bar-kv" class="bg-emerald-500 h-full transition-all duration-300" style="width: 67.7%;" title="KV Cache Pool"></div>
+          <div id="vram-bar-free" class="bg-slate-300 dark:bg-slate-600 h-full transition-all duration-300" style="width: 4.2%;" title="Activation Overhead"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 24-vGPU FLEET TOPOLOGY ARCHITECTURE MAP -->
+    <!-- ========================================================================= -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-sm space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
+              Fleet Allocator
+            </span>
+            <h2 id="fleet-title" class="text-base font-bold text-slate-900 dark:text-white">
+              24-vGPU Fleet Allocation: 12 Ray Serve Replicas × TP2
+            </h2>
+          </div>
+          <p id="fleet-desc" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            การ์ด 24 ใบถูกจับคู่เป็น 12 Replicas แยกอิสระ ผู้ใช้ 30 คนกระจายเข้า 12 Replicas ตกเพียง 2.5 คำขอต่อคู่ ตอบสนองได้ลื่นไหล ไร้คิวค้าง!
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400">Interconnect:</span>
+          <span id="fleet-interconnect-badge" class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+            PCIe Gen4 Peer-to-Peer (TP2)
+          </span>
+        </div>
+      </div>
+
+      <!-- 24 vGPUs Interactive Grid Container -->
+      <div id="vgpu-fleet-grid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+        <!-- Rendered dynamically via JS for all 24 vGPUs -->
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 3D TRANSFORMER LAYER SLICING & GQA INSPECTOR STAGE -->
+    <!-- ========================================================================= -->
+    <main class="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm overflow-hidden min-h-[520px]">
+      
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
+        <div>
+          <h2 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <span>🧊 3D Single-Replica Slicing:</span>
+            <span id="replica-slicing-name" class="text-indigo-600 dark:text-indigo-400">TP2 Slicing on 2× A40 GPUs</span>
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            ดูว่าภายใน 1 Replica เลเยอร์ 64 Layers ของ Qwen 3.8 27B ถูกแบ่งกระจายข้าม GPUs อย่างไร
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400">GQA Architecture:</span>
+          <span class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-cyan-50 dark:bg-cyan-950 text-cyan-600 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800">
+            48 Query Heads / 8 KV Heads
+          </span>
+        </div>
+      </div>
+
+      <!-- Main Dual Perspective 3D Grid -->
+      <div class="perspective-stage w-full">
+        <div id="stage-3d-canvas" class="preserve-3d grid grid-cols-12 gap-3 md:gap-4 items-stretch relative min-h-[380px]">
+
+          <!-- COLUMN 1: TOKEN STREAM & EMBEDDING (Left) -->
+          <div class="col-span-12 sm:col-span-3 lg:col-span-2 flex flex-col justify-between space-y-2.5 z-20">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-xs uppercase tracking-wider text-slate-400">1. Token Stream</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold">131K RoPE</span>
+            </div>
+
+            <!-- Vertical Token Stack -->
+            <div id="vertical-token-stack" class="space-y-1.5 flex-1 flex flex-col justify-center">
+              <!-- Rendered via JS -->
+            </div>
+
+            <div class="p-2 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 text-[11px] text-blue-700 dark:text-blue-300">
+              <span class="font-bold">Input Tokens:</span> คำขอจากผู้ใช้ 30 คนส่งกระจายเข้า Ray Serve
+            </div>
+          </div>
+
+          <!-- COLUMN 2: 3D GQA ATTENTION SLICES (Center-Left) -->
+          <div class="col-span-12 sm:col-span-9 lg:col-span-5 flex flex-col justify-between space-y-3 z-10">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-xs uppercase tracking-wider text-slate-400">2. GQA Attention Slices</span>
+                <span id="attn-slicing-label" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold">
+                  TP2: 24 Q-Heads / 4 KV-Heads per GPU
+                </span>
+              </div>
+              <span class="text-[11px] font-mono text-slate-400">64 Layers</span>
+            </div>
+
+            <!-- 3D Layer Stack View -->
+            <div id="attention-3d-stack" class="relative flex-1 flex flex-col justify-center items-center py-2 space-y-2">
+              <!-- Rendered via JS -->
+            </div>
+
+            <div class="p-2 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900 text-[11px] text-indigo-700 dark:text-indigo-300 flex items-center justify-between">
+              <span><strong>KV Head Sharding:</strong> 8 KV Heads แบ่งเท่ากัน</span>
+              <span id="attn-kv-stat" class="font-mono font-bold text-indigo-600 dark:text-indigo-400">4 KV-Heads / GPU</span>
+            </div>
+          </div>
+
+          <!-- COLUMN 3: 3D DENSE SWIGLU FFN BLOCKS (Center-Right) -->
+          <div class="col-span-12 lg:col-span-5 flex flex-col justify-between space-y-3 z-10">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-xs uppercase tracking-wider text-slate-400">3. Dense SwiGLU MLP Blocks</span>
+                <span id="mlp-slicing-label" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold">
+                  TP2 Sliced: 13.5B / GPU
+                </span>
+              </div>
+              <span class="text-[11px] font-mono text-purple-600 dark:text-purple-400 font-bold">100% Parameters Active</span>
+            </div>
+
+            <!-- Interactive MLP Trays -->
+            <div id="mlp-3d-stack" class="relative flex-1 flex flex-col justify-center items-center py-2 space-y-2">
+              <!-- Rendered via JS -->
+            </div>
+
+            <div class="p-2 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900 text-[11px] text-purple-800 dark:text-purple-300 flex items-center justify-between">
+              <span><strong>Slide 24 Lesson:</strong> Dense layers shard cleanly in TP!</span>
+              <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400">All-Reduce Synchronization</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ========================================================================= -->
+      <!-- FLOATING INTERACTIVE GUIDED TOUR CARD (2,000 USERS CAPACITY GUIDE) -->
+      <!-- ========================================================================= -->
+      <div id="floating-tour-card" class="guide-card-float absolute bottom-4 right-4 z-40 max-w-sm sm:max-w-md bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 transition-all">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <h3 id="tour-card-title" class="font-bold text-sm text-slate-900 dark:text-white">
+              1. โครงสร้างโจทย์: 2,000 คน · 30 Concurrent บน 24 vGPUs
+            </h3>
+          </div>
+          <button onclick="toggleTourCard()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
+            ✕
+          </button>
+        </div>
+
+        <p id="tour-card-body" class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
+          ในองค์กรที่มีผู้ใช้ 2,000 คน อัตราการกดใช้งานพร้อมกันเฉลี่ย (Active Concurrency) อยู่ที่ประมาณ 1.5% - 2.5% หรือราว <strong>30 คนพร้อมกัน</strong>! ด้วยการ์ด 24 vGPUs เราสามารถจัดรูปขบวนได้หลากหลายแบบตามสเปก VRAM และความเร็วเน็ตเวิร์ก
+        </p>
+
+        <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2.5">
+          <button onclick="prevTourStep()" id="tour-prev-btn" class="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center gap-1 transition-all disabled:opacity-40">
+            <span>◀</span> ย้อนกลับ
+          </button>
+
+          <div class="flex items-center gap-1 font-mono text-xs text-slate-400">
+            <span id="tour-step-curr" class="font-bold text-indigo-600 dark:text-indigo-400">1</span>
+            <span>/</span>
+            <span id="tour-step-total">8</span>
+          </div>
+
+          <button onclick="nextTourStep()" id="tour-next-btn" class="p-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1 shadow-sm transition-all">
+            ถัดไป <span>▶</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Reopen Tour Button -->
+      <button onclick="toggleTourCard()" id="btn-reopen-tour" class="hidden absolute bottom-4 right-4 z-30 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+        <span>💡 เปิดคู่มือวางแผน Capacity (Step <span id="tour-mini-step">1/8</span>)</span>
+      </button>
+    </main>
+
+    <!-- ========================================================================= -->
+    <!-- PRODUCTION READY vLLM & RAY SERVE DEPLOYMENT CONFIGURATIONS -->
+    <!-- ========================================================================= -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <!-- vLLM Serve Command Generator -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+          <span class="font-bold text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1.5 font-mono">
+            <span>💻</span> Production vLLM CLI Command (Per Replica)
+          </span>
+          <button onclick="copyToClipboard('vllm-cli-code')" class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-mono">
+            Copy CLI
+          </button>
+        </div>
+        <pre id="vllm-cli-code" class="p-4 rounded-xl bg-slate-950 font-mono text-xs text-emerald-400 overflow-x-auto leading-relaxed"># Strategy A (12 Replicas × TP2 on 24× A40 48GB):
+vllm serve Qwen/Qwen3.8-27B-Instruct \
+  --port 8000 \
+  --tensor-parallel-size 2 \
+  --kv-cache-dtype fp8 \
+  --enable-prefix-caching \
+  --max-model-len 131072 \
+  --gpu-memory-utilization 0.92</pre>
+      </div>
+
+      <!-- Ray Serve serveConfigV2 YAML Generator -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+          <span class="font-bold text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1.5 font-mono">
+            <span>☸️</span> KubeRay RayService YAML (24 vGPUs Fleet Allocation)
+          </span>
+          <button onclick="copyToClipboard('ray-yaml-code')" class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-mono">
+            Copy YAML
+          </button>
+        </div>
+        <pre id="ray-yaml-code" class="p-4 rounded-xl bg-slate-950 font-mono text-xs text-purple-300 overflow-x-auto leading-relaxed">apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: qwen-27b-2000users-service
+spec:
+  serveConfigV2: |
+    applications:
+      - name: llm
+        route_prefix: /v1
+        import_path: ray.serve.llm:build_openai_app
+        args:
+          llm_configs:
+            - model_loading_config:
+                model_id: Qwen/Qwen3.8-27B-Instruct
+              deployment_config:
+                autoscaling_config:
+                  min_replicas: 12
+                  max_replicas: 12
+              engine_kwargs:
+                tensor_parallel_size: 2
+                kv_cache_dtype: fp8
+                enable_prefix_caching: true
+                max_model_len: 131072</pre>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT APPLICATION LOGIC & CAPACITY CALCULATOR -->
+  <!-- ========================================================================= -->
+  <script>
+    const PROMPT_TOKENS = ["Qwen", "3.8", "27B", "for", "2000", "users", "@30", "concurrency", "on", "24x", "A40"];
+    let currentTokenIndex = 2;
+    let isAutoPlaying = false;
+    let autoPlayTimer = null;
+
+    // Production Parameters
+    let concurrency = 30;
+    let hardware = 'A40_48GB';
+    let precision = 'W8A16';
+    let strategy = 'A';
+    let explodePercent = 35;
+    let rotationDeg = 15;
+    let isTourOpen = true;
+
+    // Hardware Specs
+    const HARDWARE_SPECS = {
+      A40_48GB: { name: '24× NVIDIA A40 (48GB)', vram: 48, bandwidth: 696, interconnect: 'PCIe Gen4 (64 GB/s)', isNVLink: false },
+      A100_80GB: { name: '24× NVIDIA A100 (80GB)', vram: 80, bandwidth: 2039, interconnect: 'NVLink-3 (600 GB/s)', isNVLink: true },
+      VGPU_24GB: { name: '24× vGPU (24GB Slice)', vram: 24, bandwidth: 696, interconnect: 'PCIe Gen4 Virtualized', isNVLink: false }
+    };
+
+    // Precision Weight Footprint
+    const PRECISION_SPECS = {
+      BF16: { name: 'BF16 (54 GB)', bytesPerParam: 2, weightGB: 54 },
+      W8A16: { name: 'W8A16 (27 GB)', bytesPerParam: 1, weightGB: 27 },
+      INT4: { name: 'INT4 (15 GB)', bytesPerParam: 0.55, weightGB: 15 }
+    };
+
+    // Tour Steps Guide for 2,000 Users Capacity
+    const TOUR_STEPS = [
+      {
+        title: "1. โครงสร้างโจทย์: 2,000 คน · 30 Concurrent บน 24 vGPUs",
+        body: "ในองค์กรที่มีผู้ใช้ 2,000 คน อัตราการกดใช้งานพร้อมกันเฉลี่ย (Active Concurrency) อยู่ที่ประมาณ 1.5% - 2.5% หรือราว 30 คนพร้อมกัน! ด้วยการ์ด 24 vGPUs เราสามารถจัดรูปขบวนได้หลากหลายแบบตามสเปก VRAM และความเร็วเน็ตเวิร์ก",
+        strat: "A"
+      },
+      {
+        title: "2. ทำไม Strategy A (12 Replicas × TP2) คือผู้ชนะบน A40 48GB?",
+        body: "การ์ด A40 สื่อสารผ่าน PCIe Gen4 หากทำ TP4 หรือ TP8 จะเกิดคอขวด All-Reduce ข้าม PCIe แต่ TP2 สื่อสารน้อยกว่ามาก และการหั่น 24 ใบได้ 12 Replicas ทำให้ผู้ใช้ 30 คนเฉลี่ยตกเพียง 2.5 คำขอต่อคู่การ์ด! ตอบสนองได้ลื่นไหล ไร้คิวค้าง!",
+        strat: "A"
+      },
+      {
+        title: "3. Strategy B: 6 Replicas × TP4 สำหรับงาน RAG เอกสารยาวขนาดยักษ์",
+        body: "เมื่อหั่นเป็น TP4 แต่ละ GPU ถือโมเดลเพียง 6.75GB - 13.5GB ทำให้เหลือ VRAM รวมต่อ Replica มากถึง 120GB - 250GB! จึงเหมาะมากสำหรับระบบ Enterprise RAG ที่ต้องค้นเอกสารยาว 64K - 128K tokens พร้อมกันหลายคน!",
+        strat: "B"
+      },
+      {
+        title: "4. Strategy C: 24 Replicas × TP1 (Whole Replicas 1 GPU = 1 ตัวเต็ม)",
+        body: "หากใช้โมเดล W8A16 (27GB) หรือ INT4 (15GB) บนการ์ด A40 48GB โมเดลจะยัดลง 1 GPU ได้พอดี! ทำให้เราเปิดได้ถึง 24 Replicas แยกอิสระ ผู้ใช้ 30 คนแทบจะได้ GPU ประจำตัวคนละใบ โดยไม่มี Cross-GPU network traffic เลยแม้แต่น้อย!",
+        strat: "C"
+      },
+      {
+        title: "5. ข้อควรระวัง: โมเดล BF16 (54GB) บนการ์ด 24GB หรือ 48GB",
+        body: "โมเดล BF16 มีขนาด 54GB ไม่สามารถรันบนการ์ด 24GB ใบเดียวได้ (เกิด OOM ทันที!) และบน A40 48GB ก็ใส่ไม่พอหากไม่ทำ TP2 หรือ PP2 ดังนั้นการเลือก Precision ให้เหมาะกับขนาดการ์ดจึงเป็นหัวใจสำคัญ!",
+        strat: "A"
+      },
+      {
+        title: "6. Strategy D1: Pipeline Parallel (PP2 / PP4) สำหรับการ์ดข้ามเครื่อง",
+        body: "หาก vGPUs 24 ใบถูกแบ่งข้ามเครื่อง Hypervisor คนละโฮสต์ที่ไม่มี PCIe P2P หรือ NVLink การใช้ Pipeline Parallelism (PP2) หั่นเลเยอร์ 1-32 และ 33-64 จะช่วยส่งเฉพาะ Activation ได้ แต่ต้องระวัง Bubble Loss เมื่อโหลดต่ำ!",
+        strat: "D"
+      },
+      {
+        title: "7. Strategy D2: Prefill / Decode Disaggregation ข้าม 24 vGPUs",
+        body: "แบ่งกองกำลัง: จัด 8 vGPUs (2× TP4) เป็น Prefill Pool รับหน้าที่อ่าน Prompt ยาวๆ และ 16 vGPUs (8× TP2) เป็น Decode Pool สร้างคำตอบทีละโทเคน ส่งมอบ KV Cache ผ่าน NIXL ได้ประสิทธิภาพสูงสุด!",
+        strat: "D"
+      },
+      {
+        title: "8. สรุปคำแนะนำ Production สำหรับองค์กร 2,000 คน",
+        body: "แนะนำอันดับ 1: ใช้ 24× A40 48GB + W8A16 (หรือ INT4) + Strategy A (12× TP2 Replicas) เพื่อความเสถียรสูงสุด ควบคุม Latency ให้อยู่ต่ำกว่า 100ms และรองรับ 30 concurrent ได้อย่างสบายไร้ปัญหา!",
+        strat: "A"
+      }
+    ];
+    let currentTourStep = 0;
+
+    function init() {
+      renderPromptTokens();
+      calculateSLA();
+      renderFleetGrid();
+      render3DSlicing();
+      updateTourCard();
+    }
+
+    function renderPromptTokens() {
+      const container = document.getElementById('prompt-tokens-bar');
+      const vContainer = document.getElementById('vertical-token-stack');
+      if (!container || !vContainer) return;
+
+      container.innerHTML = PROMPT_TOKENS.map((tok, idx) => `
+        <button onclick="selectToken(${idx})" class="px-2 py-0.5 rounded-md font-mono text-xs transition-all shrink-0 ${
+          idx === currentTokenIndex ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-indigo-400'
+        }">
+          ${tok}
+        </button>
+      `).join('');
+
+      vContainer.innerHTML = PROMPT_TOKENS.slice(0, 7).map((tok, idx) => `
+        <div class="layer-card-3d p-2 rounded-xl border transition-all flex items-center justify-between text-xs font-mono ${
+          idx === currentTokenIndex ? 'bg-cyan-50 dark:bg-cyan-950/60 border-cyan-400 text-cyan-900 dark:text-cyan-200 font-bold scale-[1.03] shadow-md' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+        }">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full ${idx === currentTokenIndex ? 'bg-cyan-500 animate-ping' : 'bg-slate-300 dark:bg-slate-600'}"></span>
+            <span>${tok}</span>
+          </div>
+          <span class="text-[10px] text-slate-400 font-mono">tok:${idx}</span>
+        </div>
+      `).join('');
+    }
+
+    function selectToken(idx) {
+      currentTokenIndex = idx;
+      renderPromptTokens();
+    }
+
+    function stepNextToken() {
+      currentTokenIndex = (currentTokenIndex + 1) % PROMPT_TOKENS.length;
+      renderPromptTokens();
+    }
+
+    function toggleAutoPlay() {
+      isAutoPlaying = !isAutoPlaying;
+      const btn = document.getElementById('btn-autoplay');
+      if (isAutoPlaying) {
+        btn.classList.add('bg-indigo-100', 'dark:bg-indigo-950', 'text-indigo-700', 'dark:text-indigo-300');
+        autoPlayTimer = setInterval(stepNextToken, 1500);
+      } else {
+        btn.classList.remove('bg-indigo-100', 'dark:bg-indigo-950', 'text-indigo-700', 'dark:text-indigo-300');
+        clearInterval(autoPlayTimer);
+      }
+    }
+
+    // SLA & Capacity Math Engine
+    function calculateSLA() {
+      const hw = HARDWARE_SPECS[hardware];
+      const prec = PRECISION_SPECS[precision];
+      const totalGPUs = 24;
+
+      let tpSize = 2;
+      let numReplicas = 12;
+      let isPP = false;
+      let isPD = false;
+
+      if (strategy === 'A') {
+        tpSize = 2;
+        numReplicas = 12;
+      } else if (strategy === 'B') {
+        tpSize = 4;
+        numReplicas = 6;
+      } else if (strategy === 'C') {
+        tpSize = 1;
+        numReplicas = 24;
+      } else if (strategy === 'D') {
+        tpSize = 2;
+        numReplicas = 12;
+        isPD = true;
+      }
+
+      // Memory per GPU
+      const weightPerGPU = prec.weightGB / tpSize;
+      const activationOverhead = 2.0; // GB
+      const requiredMemPerGPU = weightPerGPU + activationOverhead;
+      const isOOM = requiredMemPerGPU > hw.vram;
+
+      // Update OOM Alert
+      const oomBadge = document.getElementById('oom-alert-badge');
+      if (isOOM) {
+        oomBadge.classList.remove('hidden');
+        oomBadge.textContent = `🚨 OOM: ต้องการ ${requiredMemPerGPU.toFixed(1)} GB แต่การ์ดมีเพียง ${hw.vram} GB!`;
+      } else {
+        oomBadge.classList.add('hidden');
+      }
+
+      // Remaining VRAM for KV cache
+      const kvVRAMPerGPU = Math.max(0, hw.vram - requiredMemPerGPU);
+      const kvVRAMPerReplica = kvVRAMPerGPU * tpSize;
+
+      // In Qwen 27B GQA (8 KV heads, 128 dim, 64 layers, FP8 KV): ~131 KB / token
+      const tokensPerGB = 7633;
+      const totalKVTokensReplica = Math.floor(kvVRAMPerReplica * tokensPerGB);
+
+      // Concurrent requests per replica
+      const concurrentPerReplica = Math.max(0.1, concurrency / numReplicas);
+
+      // Max context per user
+      const maxContextPerUser = Math.min(131072, Math.floor(totalKVTokensReplica / concurrentPerReplica));
+
+      // Speed calculations
+      let singleUserSpeed = (hw.bandwidth / prec.weightGB) * 2.5; // base formula
+      if (tpSize === 2) singleUserSpeed *= 1.45;
+      if (tpSize === 4) singleUserSpeed *= (hw.isNVLink ? 2.1 : 1.7);
+      if (tpSize === 1) singleUserSpeed *= 1.0;
+      if (isOOM) singleUserSpeed = 0;
+
+      const ttft = isOOM ? 99 : Math.max(0.04, 0.45 / Math.sqrt(tpSize * (hw.isNVLink ? 1.5 : 1.0)));
+      const clusterTPS = isOOM ? 0 : Math.round(singleUserSpeed * Math.min(concurrency, numReplicas * 1.8));
+
+      // Update UI Metrics
+      document.getElementById('concurrency-val-badge').textContent = `${concurrency} Concurrent`;
+      document.getElementById('load-factor-val').textContent = `${concurrentPerReplica.toFixed(1)} Concurrent / Replica (${numReplicas} Replicas)`;
+      document.getElementById('metric-vram-avail').textContent = `${hw.vram.toFixed(1)} GB`;
+      document.getElementById('metric-vram-sub').textContent = `${weightPerGPU.toFixed(1)} GB Weight + ${kvVRAMPerGPU.toFixed(1)} GB KV`;
+      document.getElementById('metric-kv-tokens').textContent = isOOM ? '0 Tokens (OOM)' : `~${(totalKVTokensReplica).toLocaleString()} Tok`;
+      document.getElementById('metric-max-ctx').textContent = isOOM ? '0' : `${maxContextPerUser.toLocaleString()} Tok`;
+      document.getElementById('metric-ttft').textContent = isOOM ? 'N/A' : `~${ttft.toFixed(3)} s`;
+      document.getElementById('metric-single-speed').textContent = isOOM ? '0' : `~${singleUserSpeed.toFixed(1)} tok/s`;
+      document.getElementById('metric-cluster-tps').textContent = isOOM ? '0' : `${clusterTPS.toLocaleString()} tok/s`;
+
+      // VRAM Breakdown Bar
+      const weightPct = Math.min(100, (weightPerGPU / hw.vram) * 100);
+      const kvPct = Math.min(100 - weightPct, (kvVRAMPerGPU / hw.vram) * 100);
+      const freePct = Math.max(0, 100 - weightPct - kvPct);
+
+      document.getElementById('vram-bar-weights').style.width = `${weightPct}%`;
+      document.getElementById('vram-bar-kv').style.width = `${kvPct}%`;
+      document.getElementById('vram-bar-free').style.width = `${freePct}%`;
+
+      document.getElementById('vram-bar-labels').textContent = 
+        `Weights: ${weightPerGPU.toFixed(1)} GB (${weightPct.toFixed(1)}%) | KV Cache: ${kvVRAMPerGPU.toFixed(1)} GB (${kvPct.toFixed(1)}%) | Overhead: ${activationOverhead} GB`;
+
+      // Update CLI & YAML displays
+      updateConfigs(strategy, tpSize, numReplicas);
+    }
+
+    // Render 24 vGPUs Fleet Grid
+    function renderFleetGrid() {
+      const container = document.getElementById('vgpu-fleet-grid');
+      if (!container) return;
+
+      let tpSize = (strategy === 'A' || strategy === 'D') ? 2 : (strategy === 'B' ? 4 : 1);
+      const numReplicas = 24 / tpSize;
+
+      const colors = [
+        'border-blue-300 bg-blue-50/70 text-blue-700 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+        'border-emerald-300 bg-emerald-50/70 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+        'border-purple-300 bg-purple-50/70 text-purple-700 dark:border-purple-700 dark:bg-purple-950/40 dark:text-purple-300',
+        'border-amber-300 bg-amber-50/70 text-amber-700 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+        'border-cyan-300 bg-cyan-50/70 text-cyan-700 dark:border-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300',
+        'border-rose-300 bg-rose-50/70 text-rose-700 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+      ];
+
+      let html = '';
+      for (let i = 0; i < 24; i++) {
+        const replicaId = Math.floor(i / tpSize) + 1;
+        const colorClass = colors[(replicaId - 1) % colors.length];
+        const localGPUId = (i % tpSize);
+
+        html += `
+          <div class="layer-card-3d p-2 rounded-xl border ${colorClass} text-center flex flex-col justify-between">
+            <div class="flex items-center justify-between text-[10px] font-mono mb-1">
+              <span class="font-bold">vGPU ${String(i+1).padStart(2, '0')}</span>
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+            </div>
+            <div class="text-[9px] font-semibold text-slate-500 dark:text-slate-400">Replica #${replicaId}</div>
+            <div class="mt-1 text-[9px] font-mono bg-white/70 dark:bg-slate-900/70 py-0.5 rounded font-bold">
+              ${tpSize === 1 ? 'TP1 Whole' : `TP${tpSize} [${localGPUId+1}/${tpSize}]`}
+            </div>
+          </div>
+        `;
+      }
+
+      container.innerHTML = html;
+    }
+
+    // Render 3D Slicing Stage
+    function render3DSlicing() {
+      const attnContainer = document.getElementById('attention-3d-stack');
+      const mlpContainer = document.getElementById('mlp-3d-stack');
+      if (!attnContainer || !mlpContainer) return;
+
+      let tpSize = (strategy === 'A' || strategy === 'D') ? 2 : (strategy === 'B' ? 4 : 1);
+
+      // Attention Heads Sharding
+      let attnHtml = '';
+      for (let g = 0; g < tpSize; g++) {
+        const qHeads = 48 / tpSize;
+        const kvHeads = 8 / tpSize;
+        attnHtml += `
+          <div class="w-full layer-card-3d p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/40 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+              <span class="font-bold text-xs text-indigo-950 dark:text-indigo-200">vGPU Slice #${g+1}</span>
+            </div>
+            <span class="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">
+              ${qHeads} Q-Heads : ${kvHeads} KV-Heads
+            </span>
+            <span class="text-[10px] font-mono text-slate-400">64 Layers Sharded</span>
+          </div>
+        `;
+      }
+      attnContainer.innerHTML = attnHtml;
+
+      // MLP Sharding
+      let mlpHtml = '';
+      for (let g = 0; g < tpSize; g++) {
+        const mlpWeight = (PRECISION_SPECS[precision].weightGB * 0.65 / tpSize).toFixed(1);
+        mlpHtml += `
+          <div class="w-full layer-card-3d p-3 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/40 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span>
+              <span class="font-bold text-xs text-purple-950 dark:text-purple-200">vGPU Slice #${g+1}</span>
+            </div>
+            <span class="text-xs font-mono font-bold text-purple-600 dark:text-purple-400">
+              ${mlpWeight} GB SwiGLU Dense
+            </span>
+            <span class="text-[10px] font-mono bg-purple-100 dark:bg-purple-900 px-1.5 py-0.5 rounded text-purple-800 dark:text-purple-200">
+              All-Reduce Sync
+            </span>
+          </div>
+        `;
+      }
+      mlpContainer.innerHTML = mlpHtml;
+
+      // Labels
+      document.getElementById('replica-slicing-name').textContent = `TP${tpSize} on ${tpSize}× ${HARDWARE_SPECS[hardware].name}`;
+      document.getElementById('attn-slicing-label').textContent = `TP${tpSize}: ${48/tpSize} Q-Heads / ${8/tpSize} KV-Heads per GPU`;
+      document.getElementById('attn-kv-stat').textContent = `${8/tpSize} KV-Heads / GPU`;
+      document.getElementById('mlp-slicing-label').textContent = `TP${tpSize} Sliced: ${(PRECISION_SPECS[precision].weightGB/tpSize).toFixed(1)} GB / GPU`;
+    }
+
+    function updateConfigs(strat, tpSize, numReplicas) {
+      const vllmCode = document.getElementById('vllm-cli-code');
+      const rayCode = document.getElementById('ray-yaml-code');
+
+      if (strat === 'A') {
+        vllmCode.textContent = `# Strategy A (12 Replicas × TP2 on 24× A40 / A100):
+# Run each replica on a 2-GPU pair with isolated NVLink/PCIe:
+vllm serve Qwen/Qwen3.8-27B-Instruct \\
+  --port 8000 \\
+  --tensor-parallel-size 2 \\
+  --kv-cache-dtype fp8 \\
+  --enable-prefix-caching \\
+  --max-model-len 131072 \\
+  --gpu-memory-utilization 0.92`;
+
+        rayCode.textContent = `apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: qwen-27b-strategy-a-12x-tp2
+spec:
+  serveConfigV2: |
+    applications:
+      - name: llm
+        route_prefix: /v1
+        import_path: ray.serve.llm:build_openai_app
+        args:
+          llm_configs:
+            - model_loading_config:
+                model_id: Qwen/Qwen3.8-27B-Instruct
+              deployment_config:
+                autoscaling_config:
+                  min_replicas: 12
+                  max_replicas: 12
+              engine_kwargs:
+                tensor_parallel_size: 2
+                kv_cache_dtype: fp8
+                enable_prefix_caching: true
+                max_model_len: 131072`;
+      } else if (strat === 'B') {
+        vllmCode.textContent = `# Strategy B (6 Replicas × TP4 for Large Enterprise RAG):
+vllm serve Qwen/Qwen3.8-27B-Instruct \\
+  --port 8000 \\
+  --tensor-parallel-size 4 \\
+  --kv-cache-dtype fp8 \\
+  --enable-prefix-caching \\
+  --max-model-len 131072 \\
+  --gpu-memory-utilization 0.95`;
+
+        rayCode.textContent = `apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: qwen-27b-strategy-b-6x-tp4
+spec:
+  serveConfigV2: |
+    applications:
+      - name: llm
+        route_prefix: /v1
+        import_path: ray.serve.llm:build_openai_app
+        args:
+          llm_configs:
+            - model_loading_config:
+                model_id: Qwen/Qwen3.8-27B-Instruct
+              deployment_config:
+                autoscaling_config:
+                  min_replicas: 6
+                  max_replicas: 6
+              engine_kwargs:
+                tensor_parallel_size: 4
+                kv_cache_dtype: fp8
+                enable_prefix_caching: true
+                max_model_len: 131072`;
+      } else if (strat === 'C') {
+        vllmCode.textContent = `# Strategy C (24 Replicas × TP1 - Whole GPU Replicas):
+# Note: Requires W8A16 or INT4 on 48GB A40!
+vllm serve Qwen/Qwen3.8-27B-Instruct \\
+  --port 8000 \\
+  --tensor-parallel-size 1 \\
+  --kv-cache-dtype fp8 \\
+  --enable-prefix-caching \\
+  --max-model-len 65536`;
+
+        rayCode.textContent = `apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: qwen-27b-strategy-c-24x-tp1
+spec:
+  serveConfigV2: |
+    applications:
+      - name: llm
+        route_prefix: /v1
+        import_path: ray.serve.llm:build_openai_app
+        args:
+          llm_configs:
+            - model_loading_config:
+                model_id: Qwen/Qwen3.8-27B-Instruct
+              deployment_config:
+                autoscaling_config:
+                  min_replicas: 24
+                  max_replicas: 24
+              engine_kwargs:
+                tensor_parallel_size: 1
+                kv_cache_dtype: fp8
+                max_model_len: 65536`;
+      } else {
+        vllmCode.textContent = `# Strategy D (P/D Disaggregation or Pipeline Parallelism):
+# Prefill Pool (8 vGPUs = 2x TP4):
+vllm serve Qwen/Qwen3.8-27B-Instruct --tensor-parallel-size 4 --role prefill --port 8001
+# Decode Pool (16 vGPUs = 8x TP2):
+vllm serve Qwen/Qwen3.8-27B-Instruct --tensor-parallel-size 2 --role decode --port 8002`;
+
+        rayCode.textContent = `# Ray Serve Disaggregated P/D or Pipeline Topology
+# Handing off Paged KV Cache over NIXL Connector`;
+      }
+    }
+
+    // Setters
+    function updateConcurrency(val) {
+      concurrency = parseInt(val);
+      calculateSLA();
+    }
+
+    function setHardware(hw) {
+      hardware = hw;
+      document.querySelectorAll('.hw-btn').forEach(b => {
+        b.classList.remove('bg-indigo-600', 'text-white', 'shadow-sm');
+        b.classList.add('text-slate-600', 'dark:text-slate-400', 'bg-slate-50', 'dark:bg-slate-800');
+      });
+      const active = document.getElementById(`btn-hw-${hw}`);
+      if (active) {
+        active.classList.remove('text-slate-600', 'dark:text-slate-400', 'bg-slate-50', 'dark:bg-slate-800');
+        active.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
+      }
+      document.getElementById('hw-interconnect-label').textContent = HARDWARE_SPECS[hw].interconnect;
+      calculateSLA();
+      render3DSlicing();
+    }
+
+    function setPrecision(prec) {
+      precision = prec;
+      document.querySelectorAll('.prec-btn').forEach(b => {
+        b.classList.remove('bg-indigo-600', 'text-white', 'shadow-sm');
+        b.classList.add('text-slate-600', 'dark:text-slate-400', 'bg-slate-50', 'dark:bg-slate-800');
+      });
+      const active = document.getElementById(`btn-prec-${prec}`);
+      if (active) {
+        active.classList.remove('text-slate-600', 'dark:text-slate-400', 'bg-slate-50', 'dark:bg-slate-800');
+        active.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
+      }
+      document.getElementById('weight-size-badge').textContent = PRECISION_SPECS[prec].name;
+      calculateSLA();
+      render3DSlicing();
+    }
+
+    function setStrategy(strat) {
+      strategy = strat;
+      document.querySelectorAll('.strat-btn').forEach(b => {
+        b.classList.remove('bg-emerald-500', 'text-white', 'shadow-sm');
+        b.classList.add('text-slate-600', 'dark:text-slate-400', 'bg-slate-50', 'dark:bg-slate-800');
+      });
+      const active = document.getElementById(`btn-strat-${strat}`);
+      if (active) {
+        active.classList.remove('text-slate-600', 'dark:text-slate-400', 'bg-slate-50', 'dark:bg-slate-800');
+        active.classList.add('bg-emerald-500', 'text-white', 'shadow-sm');
+      }
+
+      if (strat === 'A') {
+        document.getElementById('fleet-title').textContent = '24-vGPU Fleet Allocation: 12 Ray Serve Replicas × TP2';
+        document.getElementById('fleet-desc').textContent = 'การ์ด 24 ใบถูกจับคู่เป็น 12 Replicas แยกอิสระ ผู้ใช้ 30 คนกระจายเข้า 12 Replicas ตกเพียง 2.5 คำขอต่อคู่ ตอบสนองได้ลื่นไหล ไร้คิวค้าง!';
+        document.getElementById('fleet-interconnect-badge').textContent = 'PCIe Gen4 Peer-to-Peer (TP2)';
+        document.getElementById('replica-ratio-badge').textContent = '12 Replicas × TP2';
+      } else if (strat === 'B') {
+        document.getElementById('fleet-title').textContent = '24-vGPU Fleet Allocation: 6 Ray Serve Replicas × TP4 (Enterprise RAG)';
+        document.getElementById('fleet-desc').textContent = 'การ์ด 24 ใบถูกจัดเป็น 6 Quads แต่ละ Quad รัน TP4 มีพูล KV Cache มหาศาลกว่า 120-250 GB รองรับเอกสารยาว 64K-128K ได้หลายคนพร้อมกัน!';
+        document.getElementById('fleet-interconnect-badge').textContent = '4-Way All-Reduce (TP4)';
+        document.getElementById('replica-ratio-badge').textContent = '6 Replicas × TP4';
+      } else if (strat === 'C') {
+        document.getElementById('fleet-title').textContent = '24-vGPU Fleet Allocation: 24 Independent Replicas × TP1 (Whole Replicas)';
+        document.getElementById('fleet-desc').textContent = 'การ์ดแต่ละใบถือโมเดลเต็มตัว (W8A16 หรือ INT4) ผู้ใช้ 30 คนแทบจะได้ GPU ประจำตัวคนละใบ โดยไม่มี Cross-GPU network traffic เลยแม้แต่น้อย!';
+        document.getElementById('fleet-interconnect-badge').textContent = 'Zero Cross-GPU Chatter (TP1)';
+        document.getElementById('replica-ratio-badge').textContent = '24 Replicas × TP1';
+      } else {
+        document.getElementById('fleet-title').textContent = '24-vGPU Fleet Allocation: P/D Disaggregation & Pipeline Parallel';
+        document.getElementById('fleet-desc').textContent = 'จัดสรร 8 vGPUs สำหรับ Prefill Pool (TP4) และ 16 vGPUs สำหรับ Decode Pool (TP2) ส่งมอบ KV Cache ผ่าน NIXL';
+        document.getElementById('fleet-interconnect-badge').textContent = 'NIXL Cache Handoff & PP';
+        document.getElementById('replica-ratio-badge').textContent = 'P/D Pool Split';
+      }
+
+      calculateSLA();
+      renderFleetGrid();
+      render3DSlicing();
+    }
+
+    function update3DExplode(val) {
+      explodePercent = parseInt(val);
+      document.getElementById('explode-val').textContent = `${val}%`;
+      render3DSlicing();
+    }
+
+    function update3DRotation(val) {
+      rotationDeg = parseInt(val);
+      document.getElementById('rotate-val').textContent = `${val}°`;
+      const stage = document.getElementById('stage-3d-canvas');
+      if (stage) {
+        stage.style.transform = `rotateX(${val * 0.4}deg) rotateY(${val * 0.6}deg)`;
+      }
+    }
+
+    function updateTourCard() {
+      const step = TOUR_STEPS[currentTourStep];
+      document.getElementById('tour-card-title').textContent = step.title;
+      document.getElementById('tour-card-body').textContent = step.body;
+      document.getElementById('tour-step-curr').textContent = currentTourStep + 1;
+      document.getElementById('tour-step-total').textContent = TOUR_STEPS.length;
+      document.getElementById('tour-mini-step').textContent = `${currentTourStep + 1}/8`;
+      document.getElementById('tour-prev-btn').disabled = currentTourStep === 0;
+      setStrategy(step.strat);
+    }
+
+    function nextTourStep() {
+      if (currentTourStep < TOUR_STEPS.length - 1) {
+        currentTourStep++;
+        updateTourCard();
+      }
+    }
+
+    function prevTourStep() {
+      if (currentTourStep > 0) {
+        currentTourStep--;
+        updateTourCard();
+      }
+    }
+
+    function toggleTourCard() {
+      isTourOpen = !isTourOpen;
+      const card = document.getElementById('floating-tour-card');
+      const btnReopen = document.getElementById('btn-reopen-tour');
+      if (isTourOpen) {
+        card.classList.remove('hidden');
+        btnReopen.classList.add('hidden');
+      } else {
+        card.classList.add('hidden');
+        btnReopen.classList.remove('hidden');
+      }
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const icon = document.getElementById('theme-icon');
+      const iconM = document.getElementById('theme-icon-m');
+      const text = document.getElementById('theme-text');
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        if (icon) icon.textContent = '☀️';
+        if (iconM) iconM.textContent = '☀️';
+        if (text) text.textContent = 'Light Mode';
+      } else {
+        html.classList.remove('light');
+        html.classList.add('dark');
+        if (icon) icon.textContent = '🌙';
+        if (iconM) iconM.textContent = '🌙';
+        if (text) text.textContent = 'Dark Mode';
+      }
+    }
+
+    function copyToClipboard(id) {
+      const text = document.getElementById(id).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Copied configuration to clipboard!');
+      }).catch(() => {
+        alert('Failed to copy. Please manually select and copy.');
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      init();
+      update3DRotation(15);
+    });
+  </script>
+</body>
+</html>
