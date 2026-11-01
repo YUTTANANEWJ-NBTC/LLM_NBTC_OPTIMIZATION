@@ -6,13 +6,54 @@ An interactive, visual simulation suite explaining **The 4 Knives (Parallelism M
 
 ---
 
-## 🧭 The 3 Interactive Versions in this Suite
+## 🧭 The 4 Interactive Versions in this Suite
 
 | Version | Live GitHub Pages Link | Primary Model | Hardware Target | Purpose & View Mode |
 | :--- | :--- | :--- | :--- | :--- |
 | **v1** | [`index.html`](https://yuttananewj-nbtc.github.io/LLM_NBTC_OPTIMIZATION/index.html) | **DeepSeek-V4-Flash (284B MoE)** | **8× NVIDIA B200 (180GB HBM3e)** | **8-GPU Cluster & Topology View**: NVLink mesh, 4 Knives slicing matrix, Ray Summit benchmark metrics, and live packet stream. |
 | **v2** | [`index_v2.html`](https://yuttananewj-nbtc.github.io/LLM_NBTC_OPTIMIZATION/index_v2.html) | **DeepSeek-V4-Flash (284B MoE)** | **8× NVIDIA B200 (180GB HBM3e)** | **3D Transformer Explainer View**: Isometric interactive model architecture, token flow through Attention + 256 Routed Experts, and 8-step guided tutorial. |
 | **v3** | [`index_v3.html`](https://yuttananewj-nbtc.github.io/LLM_NBTC_OPTIMIZATION/index_v3.html) | **Qwen 3.8 27B (Dense Transformer)** | **24× NVIDIA A100 / A40 vGPUs** | **Enterprise Fleet Capacity Planner (2,000 Users · 30 Concurrency)**: Live VRAM SLA calculator, 24-vGPU fleet topology map, GQA sharding stage, and 4 production deployment strategies. |
+| **v4** | [`index_v4.html`](https://yuttananewj-nbtc.github.io/LLM_NBTC_OPTIMIZATION/index_v4.html) | **Dual Mode (Qwen 27B & DeepSeek 284B)** | **True 3D Vertical Tower (WebGL Three.js)** | **Vertical 3D Tower & Ultra-Detailed Step-by-Step Deep-Dive**: 100% upright cards with zero text distortion, true WebGL 3D vertical GPU tower, micro-step layer flowcharts, All-Reduce sum proofs, and timeline idle bubble charts. |
+
+---
+
+## 🗼 Version 4 Deep Dive: True 3D Vertical Tower & Ultra-Detailed Parallelism Explainer
+
+### 1. ทำไม Version 4 ถึงถูกออกแบบเป็นแนวตั้งตรง (Vertical & 100% Upright)?
+- **แก้ปัญหาความเอียงของ CSS Skew:** ในเวอร์ชันเก่า การเอียงการ์ดด้วย CSS (`perspective` และ `rotateX/Y`) ทำให้ตัวหนังสือเอียงและอ่านยาก ใน Version 4 ตัวการ์ด ผังงาน และข้อความทั้งหมดเป็นแบบ **แนวตั้งตรง 100% (Upright, Flat Layout)** คมชัด สบายตา ไม่มีการบิดเบี้ยวของฟอนต์
+- **โมเดล 3 มิติแท้ด้วย Three.js WebGL:** ใช้ WebGL 3D Canvas แสดงหอคอยฮาร์ดแวร์แนวตั้ง (Vertical Tower) พร้อมลูกบอลอนุภาค Token เรืองแสงที่วิ่งทะลุชั้นต่างๆ จากบนลงล่าง พร้อมปุ่มปรับมุมมองกล้องหน้าตรง (0° Front View), มุม 3D Isometric, และโหมดระเบิดระยะห่าง (Explode Spacing)
+
+### 2. โครงสร้างพื้นฐาน 1 ชั้น (1 Transformer Block) จากบนลงล่าง
+- **Step 1: Input Tokens & Vector Embedding:** แปลงข้อความตัวอักษรเป็นเวกเตอร์ตัวเลขขนาด 5,120 มิติ
+- **Step 2: Department 1 — Grouped-Query Attention (GQA):**
+  - แตกออกเป็น **48 Query Heads** และ **8 KV Heads** (อัตราส่วน 6:1 เพื่อประหยัดแรม KV Cache 6 เท่า)
+  - แต่ละหัวทำ **Softmax จบในตัวมันเอง 100%** โดยไม่ต้องแชร์คะแนนข้ามหัว
+  - รวมผลด้วย Concat + คูณเมทริกซ์ $W_O$ + ทางลัด Residual Connection
+- **Step 3: Department 2 — SwiGLU FFN (Dense MLP):**
+  - ขยายมิติจาก 5,120 ช่อง ➔ 18,944 ช่อง ด้วย $W_{\text{gate}}$ และ $W_{\text{up}}$
+  - ผ่านฟังก์ชันเปิด-ปิด $\text{Swish}(X \cdot W_{\text{gate}}) \odot (X \cdot W_{\text{up}})$
+  - บีบมิติกลับจาก 18,944 ช่อง ➔ 5,120 ช่อง ด้วย $W_{\text{down}}$ + Residual Connection
+- **Step 4: ส่งไม้ต่อทีละชั้น (Sequential Dependency):** เวกเตอร์จาก Layer 1 กลายเป็น Input ของ Layer 2 ➔ Layer 3 ➔ ... ➔ Layer 64
+- **Step 5: ปลายตึก LM Head:** แปลงเวกเตอร์ 5,120 ช่อง ออกมาเป็นคะแนนความน่าจะเป็นของพจนานุกรม 151,643 คำ เพื่อพ่นคำถัดไปออกมา 1 คำ
+
+### 3. เจาะลึก 4 แนวทางขนานโมเดล (Parallelism Approaches)
+1. **แนวทางที่ 1: TP (Tensor Parallelism) — ผ่าซีกทุกชั้นตามแนวตั้ง:**
+   - GPU 1 และ GPU 2 รุมคำนวณในชั้นเดียวกัน (แบ่ง 48 หัวคนละ 24 หัว และแบ่ง FFN คนละครึ่ง)
+   - มีการซิงค์ **All-Reduce 2 ครั้งต่อชั้น** (รวม 128 ครั้งต่อ 1 คำ)
+   - พิสูจน์คณิตศาสตร์ว่าทำไม All-Reduce ต้อง **"บวกกันตรงๆ (Sum)"** ไม่ใช่หาค่าเฉลี่ย ตามสูตรการแยกเมทริกซ์แบบบล็อก $(A_1 W_1 + A_2 W_2 = X)$
+   - ไม่มีเวลาว่างงาน (0% Idle Bubble) ทำให้เป็นแชมป์เรื่องความเร็ว Single-stream latency (TTFT < 90ms)
+2. **แนวทางที่ 2: TEP / EP (Tensor + Expert Parallelism) — ผ่า Attention แต่แจก Expert เต็มตัว:**
+   - ใช้กับโมเดลแบบ MoE เช่น DeepSeek 284B ที่มี 256 Experts (คัด 6 ตัวต่อคำ)
+   - การ์ดแต่ละใบถือ Expert เต็มตัว (32 ตัว/การ์ด) ไม่ต้องผ่าเมทริกซ์ Expert ย่อย
+   - *คำเตือน Slide 24:* ไม่สามารถใช้กับ Qwen 27B ได้ เพราะเป็นโมเดลแบบ Dense (ไม่มี Expert ให้แบ่ง)
+3. **แนวทางที่ 3: PP (Pipeline Parallelism) — สายพานคนละชั้น:**
+   - GPU 1 ดูแลชั้น 1–32 ส่วน GPU 2 ดูแลชั้น 33–64
+   - ซิงค์ส่งเวกเตอร์ข้ามการ์ดแค่ครั้งเดียว (P2P Activation) ตอนเปลี่ยนช่วงชั้น
+   - **จุดอ่อนสำคัญ (Pipeline Bubble):** ในวินาทีที่ 0–10s GPU 2 ต้องนั่งรอ GPU 1 คิดชั้น 1–32 ให้เสร็จก่อน และในวินาทีที่ 10–20s GPU 1 ก็จะนั่งว่างงานรอ GPU 2 คิดชั้น 33–64
+   - ใช้เมื่อแรมการ์ดไม่พอ (เช่น vGPU 24GB รัน BF16 54GB) หรือเชื่อมข้ามเครื่องด้วยสายช้า
+4. **แนวทางที่ 4: DP / Whole Replicas & P/D Disaggregation — ขนานหลายตึกสำหรับ 2,000 คน (30 Concurrent):**
+   - **แบบ 4A (Whole Replicas 12 ตึก × TP2):** ผู้ใช้ 30 คนถูกแบ่งไปตึกละ 2.5 คน ไม่มีการส่งสายไฟคุยข้ามตึกเลย (0% Cross-Node Overhead)
+   - **แบบ 4B (P/D Disaggregation):** แยกตึกอ่านโจทย์ Prefill (8 vGPUs TP4) ออกจากตึกเขียนคำตอบ Decode (16 vGPUs TP2) โดยส่งก้อน KV Cache ข้ามผ่านสะพาน NIXL
 
 ---
 
@@ -154,7 +195,8 @@ git push -u origin main
 6. Within 1 minute, your site will be live at:
    - **Version 1 (Default):** `https://<your-username>.github.io/<your-repo-name>/`
    - **Version 2:** `https://<your-username>.github.io/<your-repo-name>/index_v2.html`
-   - **Version 3:** `https://<your-username>.github.io/<your-repo-name>/index_v3.html`! 🎉
+   - **Version 3:** `https://<your-username>.github.io/<your-repo-name>/index_v3.html`
+   - **Version 4:** `https://<your-username>.github.io/<your-repo-name>/index_v4.html`! 🎉
 
 ---
 
@@ -163,6 +205,7 @@ git push -u origin main
 ├── index.html       # Version 1: 8-GPU Cluster View & Topology Mesh (DeepSeek-V4-Flash)
 ├── index_v2.html    # Version 2: 3D Transformer Explainer View (DeepSeek-V4-Flash MoE)
 ├── index_v3.html    # Version 3: Enterprise Capacity Planner (Qwen 3.8 27B on 24× A100/A40 vGPUs)
+├── index_v4.html    # Version 4: True 3D Vertical Tower & Ultra Deep-Dive (WebGL Three.js)
 ├── .nojekyll        # Disables Jekyll processing for full compatibility on GitHub Pages
 ├── README.md        # Comprehensive bilingual documentation & presentation recap
 └── natdhanai-praneenatthavee-ray-summit-2026-recap-opening.pdf  # Source presentation deck
@@ -170,8 +213,4 @@ git push -u origin main
 
 ---
 
-*Presented by Eyal Lantzman (Nscale) & Natdhanai Praneenatthavee at Ray Summit 2026 Recap, extended with Qwen 3.8 27B Enterprise Capacity Planning.*
-
----
-
-*Presented by Eyal Lantzman (Nscale) & Natdhanai Praneenatthavee at Ray Summit 2026 Recap.*
+*Presented by Eyal Lantzman (Nscale) & Natdhanai Praneenatthavee at Ray Summit 2026 Recap, extended with Qwen 3.8 27B Enterprise Capacity Planning and True 3D Vertical Tower Architecture.*

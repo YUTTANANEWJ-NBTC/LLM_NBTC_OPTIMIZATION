@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="th" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vLLM Explainer v4 | True 3D Vertical Tower & Ultra-Detailed Parallelism Deep-Dive</title>
+
+  <!-- OpenGraph Metadata for Social & GitHub Sharing -->
+  <meta property="og:title" content="vLLM Explainer v4 — True 3D Vertical Tower & Parallelism Deep-Dive">
+  <meta property="og:description" content="ผ่าโครงสร้าง 4 แนวทางขนานโมเดลภาษาขนาดใหญ่ (TP, TEP/EP, PP, DP & P/D) ในมุมมอง 3D แนวตั้งตรง (Three.js) และขั้นตอนการไหลทีละระดับจากบนลงล่างอย่างละเอียดที่สุด">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#f8fafc">
+
+  <!-- Google Fonts: Inter, Noto Sans Thai, JetBrains Mono, Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans Thai', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+            brand: ['Space Grotesk', 'Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Three.js CDN for True 3D Vertical Tower Simulation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    /* Dot Grid Background inspired by Georgia Tech Transformer Explainer */
+    .bg-dot-grid-light {
+      background-color: #f8fafc;
+      background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+      background-size: 24px 24px;
+    }
+    .dark .bg-dot-grid-light {
+      background-color: #0b0f19;
+      background-image: radial-gradient(#1e293b 1.2px, transparent 1.2px);
+      background-size: 24px 24px;
+    }
+
+    /* Subtle custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
+
+    /* Animated pulse indicators */
+    @keyframes pulseSoft {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.04); opacity: 1; }
+    }
+    .pulse-soft { animation: pulseSoft 2.5s infinite ease-in-out; }
+
+    /* Flow vertical dashed line */
+    .flow-line-vertical {
+      background: repeating-linear-gradient(to bottom, #6366f1 0, #6366f1 6px, transparent 6px, transparent 12px);
+    }
+    .flow-line-vertical-emerald {
+      background: repeating-linear-gradient(to bottom, #10b981 0, #10b981 6px, transparent 6px, transparent 12px);
+    }
+    .flow-line-vertical-amber {
+      background: repeating-linear-gradient(to bottom, #f59e0b 0, #f59e0b 6px, transparent 6px, transparent 12px);
+    }
+    .flow-line-vertical-purple {
+      background: repeating-linear-gradient(to bottom, #8b5cf6 0, #8b5cf6 6px, transparent 6px, transparent 12px);
+    }
+
+    /* Upright card styling - strictly no 3D skewing on text containers! */
+    .flat-card {
+      transform: none !important;
+      perspective: none !important;
+    }
+  </style>
+</head>
+<body class="bg-dot-grid-light text-slate-800 dark:text-slate-100 antialiased min-h-screen text-xs md:text-sm selection:bg-indigo-500 selection:text-white">
+
+  <!-- Main Container -->
+  <div class="max-w-[1720px] mx-auto p-3 sm:p-5 md:p-8 space-y-6">
+
+    <!-- ========================================================================= -->
+    <!-- 4-WAY VERSION SWITCHER TOP BANNER (v1 ⇄ v2 ⇄ v3 ⇄ v4) -->
+    <!-- ========================================================================= -->
+    <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 rounded-2xl px-4 py-2.5 flex flex-col lg:flex-row items-center justify-between gap-3 shadow-sm">
+      <div class="flex items-center gap-2.5">
+        <span class="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-bold text-[10px] uppercase tracking-wider">VERSIONS</span>
+        <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">สลับดูการจำลองและสถาปัตยกรรมโมเดล vLLM ทั้ง 4 เวอร์ชัน:</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+        <!-- v1 link -->
+        <a href="index.html" class="px-3 py-1.5 rounded-lg font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50">
+          🖥️ v1: Cluster View (DeepSeek 284B)
+        </a>
+        <!-- v2 link -->
+        <a href="index_v2.html" class="px-3 py-1.5 rounded-lg font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50">
+          🧊 v2: 3D Explainer (DeepSeek 284B MoE)
+        </a>
+        <!-- v3 link -->
+        <a href="index_v3.html" class="px-3 py-1.5 rounded-lg font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50">
+          ⚡ v3: Qwen 27B · 24 vGPUs (2,000 Users)
+        </a>
+        <!-- v4 active -->
+        <a href="index_v4.html" class="px-3 py-1.5 rounded-lg font-bold transition-all bg-indigo-600 text-white shadow-sm flex items-center gap-1.5">
+          <span>🗼 v4 Active: True 3D Vertical Tower & Ultra Deep-Dive</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        </a>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TOP NAVIGATION & BRAND HEADER -->
+    <!-- ========================================================================= -->
+    <header class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 rounded-2xl px-5 py-4 shadow-sm flex flex-col xl:flex-row items-center justify-between gap-4 sticky top-2 z-50">
+      
+      <!-- Brand & Title -->
+      <div class="flex items-center gap-3.5 w-full xl:w-auto justify-between xl:justify-start">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-500 flex items-center justify-center text-white font-black text-xl shadow-md shadow-indigo-500/20 font-brand">
+            4D
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-brand font-black text-lg sm:text-xl tracking-tight bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                VERTICAL 3D PARALLELISM EXPLAINER
+              </span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800">
+                Three.js WebGL Engine
+              </span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800">
+                100% Upright & No Text Skew
+              </span>
+            </div>
+            <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
+              ผ่าโครงสร้าง 4 แนวทางขนานโมเดล (TP, TEP/EP, PP, DP & P/D) จากบนลงล่างอย่างละเอียดที่สุด พร้อมโมเดล 3D แนวตั้งจริง
+            </p>
+          </div>
+        </div>
+
+        <!-- Dark/Light Theme Toggle (Mobile) -->
+        <button onclick="toggleTheme()" class="xl:hidden p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+          <span id="theme-icon-m">☀️</span>
+        </button>
+      </div>
+
+      <!-- Quick Section Jump Links -->
+      <div class="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-slate-950/90 rounded-xl border border-slate-200 dark:border-slate-800 text-xs w-full xl:w-auto justify-center">
+        <a href="#section-0" class="px-2.5 py-1.5 rounded-lg font-medium text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-indigo-600 transition-all">
+          🏛️ โครงสร้าง 1 ชั้น
+        </a>
+        <a href="#section-tp" class="px-2.5 py-1.5 rounded-lg font-medium text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-indigo-600 transition-all">
+          1️⃣ TP (รุมคิดชั้นเดียวกัน)
+        </a>
+        <a href="#section-tep" class="px-2.5 py-1.5 rounded-lg font-medium text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-indigo-600 transition-all">
+          2️⃣ TEP/EP (แจก Expert)
+        </a>
+        <a href="#section-pp" class="px-2.5 py-1.5 rounded-lg font-medium text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-indigo-600 transition-all">
+          3️⃣ PP (สายพานคนละชั้น)
+        </a>
+        <a href="#section-dp" class="px-2.5 py-1.5 rounded-lg font-medium text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-indigo-600 transition-all">
+          4️⃣ DP & P/D (24 vGPUs)
+        </a>
+        <a href="#section-matrix" class="px-2.5 py-1.5 rounded-lg font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-all">
+          📊 ตารางเปรียบเทียบแม่บท
+        </a>
+      </div>
+
+      <!-- Model Scope Selector & Theme Toggle -->
+      <div class="hidden xl:flex items-center gap-2">
+        <div class="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+          <span class="text-slate-500 dark:text-slate-400 font-medium">โมเดลอ้างอิง:</span>
+          <button onclick="switchGlobalModel('qwen')" id="btn-model-qwen" class="px-2.5 py-1 rounded-lg font-bold bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm transition-all">
+            Qwen 27B (Dense)
+          </button>
+          <button onclick="switchGlobalModel('deepseek')" id="btn-model-deepseek" class="px-2.5 py-1 rounded-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 transition-all">
+            DeepSeek 284B (MoE)
+          </button>
+        </div>
+
+        <button onclick="toggleTheme()" class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
+          <span id="theme-icon">☀️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ========================================================================= -->
+    <!-- MASTER 3D VERTICAL TOWER STUDIO (THREE.JS WEBGL ENGINE) -->
+    <!-- ========================================================================= -->
+    <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 md:p-7 shadow-sm space-y-4">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs">
+              3D VERTICAL STUDIO
+            </span>
+            <h2 class="text-lg md:text-xl font-bold font-brand text-slate-900 dark:text-white">
+              หอคอยจำลองฮาร์ดแวร์และการไหลของข้อมูลแนวตั้งจริง (True 3D Vertical Tower)
+            </h2>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            ดูการเคลื่อนที่ของ Token จากบนลงล่างทะลุชั้นต่างๆ ของ GPU แบบ 3 มิติแท้ ไม่มีตัวหนังสือเอียง พร้อมปุ่มปรับมุมมองกล้องทันที
+          </p>
+        </div>
+
+        <!-- 3D Approach Switcher Tabs -->
+        <div class="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs">
+          <button onclick="setThreeApproach('tp')" id="3d-tab-tp" class="px-3 py-1.5 rounded-xl font-bold bg-indigo-600 text-white shadow-sm transition-all flex items-center gap-1">
+            <span>1️⃣ TP2 (ผ่าซีกในชั้น)</span>
+          </button>
+          <button onclick="setThreeApproach('tep')" id="3d-tab-tep" class="px-3 py-1.5 rounded-xl font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1">
+            <span>2️⃣ TEP (MoE Experts)</span>
+          </button>
+          <button onclick="setThreeApproach('pp')" id="3d-tab-pp" class="px-3 py-1.5 rounded-xl font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1">
+            <span>3️⃣ PP (สายพานคนละชั้น)</span>
+          </button>
+          <button onclick="setThreeApproach('dp')" id="3d-tab-dp" class="px-3 py-1.5 rounded-xl font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1">
+            <span>4️⃣ DP (12 ตึกคู่ขนาน)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3D Canvas + Live Status Overlay -->
+      <div class="relative w-full h-[520px] md:h-[620px] rounded-2xl overflow-hidden bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 border border-slate-800 shadow-inner">
+        
+        <!-- Three.js Canvas Element -->
+        <canvas id="three-vertical-canvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+        <!-- Top Left: Camera Controls & Presets -->
+        <div class="absolute top-4 left-4 z-10 flex flex-wrap items-center gap-1.5 bg-slate-900/80 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/80 text-[11px] text-white">
+          <span class="text-slate-400 px-2 font-mono">กล้อง:</span>
+          <button onclick="setCameraView('front')" class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold transition-all">
+            📐 หน้าตรง (0° ไม่เอียง)
+          </button>
+          <button onclick="setCameraView('iso')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 font-semibold transition-all">
+            🧊 3D มุมลึก (Isometric)
+          </button>
+          <button onclick="toggleExplodeSpacing()" id="btn-explode" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 font-semibold transition-all">
+            🔍 ขยายระยะห่าง (Explode)
+          </button>
+          <button onclick="resetCamera()" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">
+            ↺ รีเซ็ต
+          </button>
+        </div>
+
+        <!-- Top Right: Animation Controls -->
+        <div class="absolute top-4 right-4 z-10 flex items-center gap-2 bg-slate-900/80 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/80 text-[11px] text-white">
+          <button onclick="togglePlayPause()" id="btn-play-pause" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-bold flex items-center gap-1.5 transition-all">
+            <span id="play-icon">⏸️</span>
+            <span id="play-text">พักการไหล</span>
+          </button>
+          <div class="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-slate-300">
+            <span>ความเร็ว:</span>
+            <button onclick="setFlowSpeed(0.5)" class="px-1.5 hover:text-white font-mono">0.5x</button>
+            <button onclick="setFlowSpeed(1.0)" class="px-1.5 text-indigo-400 font-bold font-mono">1.0x</button>
+            <button onclick="setFlowSpeed(2.0)" class="px-1.5 hover:text-white font-mono">2.0x</button>
+          </div>
+        </div>
+
+        <!-- Bottom Left: Active Approach Blueprint Info Box -->
+        <div class="absolute bottom-4 left-4 z-10 max-w-md bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl p-4 text-white shadow-xl pointer-events-none">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span id="blueprint-tag" class="px-2 py-0.5 rounded-md bg-indigo-600 text-[10px] font-bold uppercase tracking-wider">
+              APPROACH 1
+            </span>
+            <h4 id="blueprint-title" class="font-bold text-sm text-white">
+              TP2 (Tensor Parallelism บน 2 vGPUs)
+            </h4>
+          </div>
+          <p id="blueprint-desc" class="text-xs text-slate-300 leading-relaxed">
+            GPU 1 และ GPU 2 รุมคำนวณ Layer เดียวกันพร้อมกัน: แบ่ง 48 Q-Heads คนละ 24 หัว และแบ่ง FFN คนละครึ่ง จากนั้นซิงค์ค่าด้วย All-Reduce 2 ครั้งต่อชั้น ทำให้ไม่มีการ์ดใบไหนว่างงาน!
+          </p>
+          <div class="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-[11px]">
+            <span class="text-slate-400">การสื่อสารข้ามการ์ด:</span>
+            <span id="blueprint-comm" class="font-mono text-emerald-400 font-bold">NVLink / PCIe (All-Reduce 2 ครั้ง/ชั้น)</span>
+          </div>
+        </div>
+
+        <!-- Bottom Right: Live 3D Interaction Tip -->
+        <div class="absolute bottom-4 right-4 z-10 hidden sm:flex items-center gap-2 bg-slate-900/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/60 text-[11px] text-slate-300">
+          <span>🖱️ คลิกค้างเพื่อหมุน 360° | เลื่อนลูกกลิ้งเมาส์เพื่อซูมเข้า-ออก</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- SECTION 0: โครงสร้างพื้นฐาน 1 ชั้น (1 TRANSFORMER BLOCK = 1 LAYER) -->
+    <!-- ========================================================================= -->
+    <section id="section-0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-9 shadow-sm space-y-6">
+      
+      <!-- Section Header -->
+      <div class="max-w-4xl space-y-2">
+        <div class="flex items-center gap-2">
+          <span class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+            🏛️ SECTION 0 · พื้นฐานสถาปัตยกรรมระดับจุลภาค
+          </span>
+          <span class="text-xs text-slate-400 font-mono">Sequential Layer Execution</span>
+        </div>
+        <h2 class="text-xl md:text-2xl font-black font-brand text-slate-900 dark:text-white tracking-tight">
+          โครงสร้าง 1 ชั้น (1 Transformer Block = 1 Layer) ทำงานจากบนลงล่างอย่างไร?
+        </h2>
+        <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+          ก่อนที่จะนำโมเดลไปผ่าแยกลงการ์ดจอหลายๆ ใบด้วย 4 แนวทาง เราจำเป็นต้องเข้าใจก่อนว่าใน **1 ชั้นเดี่ยวๆ (1 Layer)** ข้อมูล Token ไหลผ่านแผนกอะไรบ้าง และทำไมโมเดลถึงต้องคำนวณทีละชั้นเรียงตามแนวตั้งโดยข้ามขั้นไม่ได้
+        </p>
+      </div>
+
+      <!-- Vertical Step-by-Step Flowchart Container (100% Upright, Straight, Crisp!) -->
+      <div class="relative pl-6 sm:pl-10 space-y-8 before:absolute before:left-3 sm:before:left-5 before:top-4 before:bottom-4 before:w-1 before:bg-indigo-100 dark:before:bg-indigo-950">
+
+        <!-- Step 1: Input Tokens & Vector Embedding -->
+        <div class="relative bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-5 space-y-3">
+          <div class="absolute -left-6 sm:-left-10 top-5 w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-indigo-600 text-white font-black flex items-center justify-center text-xs shadow-md shadow-indigo-500/30">
+            01
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
+            <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span>ขั้นที่ 1 (บนสุดของตึก): Input Tokens & Vector Embedding</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-mono">Tokenization</span>
+            </h3>
+            <span class="text-xs font-mono text-slate-500">มิติเวกเตอร์ X ∈ ℝ^(Batch × Seq_Len × 5,120)</span>
+          </div>
+          <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            ผู้ใช้พิมพ์ประโยคคำถามเข้ามา เช่น <code class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-mono font-bold text-indigo-600 dark:text-indigo-400">"ฉัน ไป ซื้อ ชา เขียว"</code> ระบบ Tokenizer จะแปลงคำแต่ละคำเป็นรหัสตัวเลข (Token IDs) จากนั้นวิ่งผ่านตาราง <strong>Embedding Table</strong> เพื่อแปลงเป็นเวกเตอร์ตัวเลขทศนิยมขนาด <strong>5,120 มิติ</strong> (สำหรับ Qwen 27B) ซึ่งเวกเตอร์ชุดนี้คือตัวแทนความหมายเริ่มต้นของคำ และจะทำหน้าที่เป็นวัตถุดิบป้อนเข้าสู่ <strong>Layer ที่ 1</strong> ทางด้านบนสุดของโมเดล
+          </p>
+          <div class="bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-xs font-mono flex flex-wrap items-center gap-3">
+            <span class="text-slate-400">ตัวอย่างข้อมูล:</span>
+            <span class="text-indigo-600 dark:text-indigo-400">["ฉัน", "ไป", "ซื้อ", "ชา", "เขียว"]</span>
+            <span class="text-slate-400">➔ Token IDs [421, 882, 1204, ...] ➔ เวกเตอร์ขนาด (5 × 5,120)</span>
+          </div>
+        </div>
+
+        <!-- Step 2: Layer 1 - Multi-Head / GQA Attention -->
+        <div class="relative bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-5 space-y-4">
+          <div class="absolute -left-6 sm:-left-10 top-5 w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-blue-600 text-white font-black flex items-center justify-center text-xs shadow-md shadow-blue-500/30">
+            02
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
+            <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span>ขั้นที่ 2: แผนกที่ 1 ของ Layer 1 — Grouped-Query Attention (GQA)</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-mono">48 Q-Heads : 8 KV-Heads</span>
+            </h3>
+            <span class="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold">ประหยัดแรม KV Cache 6 เท่า!</span>
+          </div>
+          
+          <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            เวกเตอร์ขนาด 5,120 จะถูกส่งเข้าไปยังแผนก Attention เพื่อให้คำแต่ละคำ <strong>"สบตากันและมองหาความสัมพันธ์"</strong> (เช่น คำว่า "เขียว" มีความสัมพันธ์เชื่อมโยงกับ "ชา"):
+          </p>
+
+          <!-- 3 Inner Flow Boxes for GQA -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+              <div class="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                <span>1. แตกเป็น 48 หัว Q และ 8 หัว KV</span>
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-400 leading-normal">
+                เวกเตอร์จะถูกคูณเมทริกซ์ $W_Q, W_K, W_V$ แตกออกเป็น <strong>48 หัวคำถาม (Query Heads)</strong> และ <strong>8 หัวคำตอบ (KV Heads)</strong> โดยทุกๆ <strong>6 หัว Q จะแชร์ใช้ 1 หัว KV ร่วมกัน</strong> (อัตราส่วน 6:1) เช่น Q1–Q6 คู่กับ KV1, Q7–Q12 คู่กับ KV2
+              </p>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+              <div class="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
+                <span>2. Softmax ทำจบในแต่ละหัว 100%</span>
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-400 leading-normal">
+                แต่ละหัวจะคิดสมการ $\text{Softmax}(Q K^T / \sqrt{d_k}) V$ แยกขาดจากกันโดยสิ้นเชิง <strong>ไม่ต้องนำคะแนนข้ามหัวมาบวกรวมกันเลย!</strong> ทำให้หัว Attention แต่ละหัวเป็นอิสระต่อกัน 100% เหมาะอย่างยิ่งต่อการผ่าแยกลง GPU คนละใบ
+              </p>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+              <div class="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <span>3. รวมผล Concat + คูณ W_O + Residual</span>
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-400 leading-normal">
+                พอคิดเสร็จครบทั้ง 48 หัว จะนำเวกเตอร์มาต่อแถวเรียงกัน (Concat) แล้วคูณเมทริกซ์ $W_O$ เพื่อรวมผลกลับมาเป็นเวกเตอร์ขนาด 5,120 ช่องเท่าเดิม จากนั้นนำไปบวกกับเวกเตอร์ตั้งต้นผ่าน <strong>ทางลัด Residual Connection</strong>: $X_{\text{mid}} = X + \text{Attention}(X)$
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Layer 1 - SwiGLU FFN / MLP -->
+        <div class="relative bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-5 space-y-4">
+          <div class="absolute -left-6 sm:-left-10 top-5 w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-purple-600 text-white font-black flex items-center justify-center text-xs shadow-md shadow-purple-500/30">
+            03
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
+            <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span>ขั้นที่ 3: แผนกที่ 2 ของ Layer 1 — SwiGLU FFN (Feed-Forward Network)</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 font-mono">คลังความรู้แบบ Dense MLP</span>
+            </h3>
+            <span class="text-xs font-mono text-purple-600 dark:text-purple-400">ขยายมิติ: 5,120 ➔ 18,944 ➔ 5,120</span>
+          </div>
+
+          <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            หลังจากคำแต่ละคำสบตากันแล้ว ข้อมูลเวกเตอร์ $X_{\text{mid}}$ จะถูกส่งมาที่แผนก <strong>Feed-Forward Network (FFN)</strong> ซึ่งทำหน้าที่เป็นเหมือน <strong>"สมองดึงคลังความรู้เชิงลึก"</strong> โดยมีขั้นตอนการคำนวณแบบ SwiGLU ดังนี้:
+          </p>
+
+          <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 font-mono text-xs">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-700 dark:text-slate-300">
+              <span class="font-bold text-indigo-600 dark:text-indigo-400">1. ขยายมิติขาขึ้น (Expand):</span>
+              <span>เวกเตอร์ 5,120 ช่อง คูณเมทริกซ์ $W_{\text{gate}}$ และ $W_{\text{up}}$ ขยายเป็นกระดานดำ 18,944 ช่อง</span>
+            </div>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-700 dark:text-slate-300 border-t border-slate-100 dark:border-slate-800 pt-2">
+              <span class="font-bold text-purple-600 dark:text-purple-400">2. ประตูเปิด-ปิด SwiGLU:</span>
+              <span>ผลลัพธ์ = $\text{Swish}(X \cdot W_{\text{gate}}) \odot (X \cdot W_{\text{up}})$ เพื่อคัดกรองข้อมูลสำคัญ</span>
+            </div>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-700 dark:text-slate-300 border-t border-slate-100 dark:border-slate-800 pt-2">
+              <span class="font-bold text-emerald-600 dark:text-emerald-400">3. ยุบมิติขาลง (Compress):</span>
+              <span>คูณเมทริกซ์ $W_{\text{down}}$ บีบมิติจาก 18,944 ช่องกลับมาเป็น 5,120 ช่องเท่าเดิม</span>
+            </div>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            สุดท้ายนำผลลัพธ์บวกกลับเข้า Residual Connection รอบสอง จะได้เวกเตอร์ผลลัพธ์สมบูรณ์ของ Layer 1 เรียกว่า $X_{\text{Layer 1}}$!
+          </p>
+        </div>
+
+        <!-- Step 4: Passing Down from Layer 1 to Layer 64 (Sequential Stack) -->
+        <div class="relative bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-5 space-y-3">
+          <div class="absolute -left-6 sm:-left-10 top-5 w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-amber-600 text-white font-black flex items-center justify-center text-xs shadow-md shadow-amber-500/30">
+            04
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
+            <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span>ขั้นที่ 4: ส่งไม้ต่อจาก Layer 1 ลงสู่ Layer 2 ➔ Layer 3 ➔ ... ➔ Layer 64</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-mono">Sequential Dependency</span>
+            </h3>
+            <span class="text-xs font-mono text-amber-600 dark:text-amber-400 font-bold">ต้องรอกันทีละชั้น ข้ามขั้นไม่ได้!</span>
+          </div>
+          <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            นี่คือเหตุผลที่ตึก Transformer ต้องเรียงตามแนวตั้ง! ค่าเวกเตอร์ $X_{\text{Layer 1}}$ ที่หลุดออกมาจากด้านล่างของ Layer 1 จะทำหน้าที่เป็นวัตถุดิบ (Input) วิ่งเข้าสู่หัวตึกของ <strong>Layer 2</strong> ทันที จากนั้น Layer 2 จะนำเวกเตอร์นี้ไปคูณ $W_Q, W_K, W_V$ เป็น Query/Key/Value ชุดใหม่ของ Layer 2 และผ่าน Attention กับ FFN ซ้ำอีกรอบ และส่งต่อให้ Layer 3, 4, ... จนกระทั่งถึง <strong>Layer 64</strong>!
+          </p>
+        </div>
+
+        <!-- Step 5: Final LM Head at the Bottom -->
+        <div class="relative bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-5 space-y-3">
+          <div class="absolute -left-6 sm:-left-10 top-5 w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center text-xs shadow-md shadow-emerald-500/30">
+            05
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
+            <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span>ขั้นที่ 5 (ล่างสุดของตึก): ปลายทางออกสู่ LM Head (Token Prediction)</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-mono">Vocabulary Softmax</span>
+            </h3>
+            <span class="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold">พ่นคำถัดไปออกมา 1 คำ!</span>
+          </div>
+          <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            เมื่อเวกเตอร์ไหลทะลุผ่านครบทั้ง 64 ชั้นจนถึงชั้นล่างสุด จะถูกปรับสเกลด้วย <strong>RMSNorm สุดท้าย</strong> แล้วส่งเข้าสู่ <strong>LM Head</strong> (Un-embedding Matrix) เพื่อแปลงจากเวกเตอร์ 5,120 ช่อง ออกมาเป็นคะแนนความน่าจะเป็นของคำศัพท์ทั้ง 151,643 คำในพจนานุกรม และเลือกคำที่มีคะแนนสูงสุดพ่นออกมา (เช่น คำว่า <code class="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold">"อร่อย"</code>)
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- SECTION 1: APPROACH 1 — TP (TENSOR PARALLELISM) -->
+    <!-- ========================================================================= -->
+    <section id="section-tp" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-9 shadow-sm space-y-6">
+      
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+              แนวทางที่ 1 · LATENCY CHAMPION
+            </span>
+            <span class="text-xs font-mono text-slate-400">Strategy A: 12 Replicas × TP2</span>
+          </div>
+          <h2 class="text-xl md:text-2xl font-black font-brand text-slate-900 dark:text-white mt-1">
+            TP (Tensor Parallelism) — ผ่าซีกทุกชั้นตามแนวตั้ง ช่วยกันรุมคิดในชั้นเดียวกัน
+          </h2>
+          <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-1">
+            ทั้ง GPU 1 และ GPU 2 มีตัวตนอยู่ในชั้นเดียวกัน รุมคำนวณและซิงค์ตัวเลขกันด้วย All-Reduce ไม่มีใครต้องนั่งรอใคร!
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="setThreeApproach('tp')" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5">
+            <span>🗼 โหลดมุม 3D แนวทางนี้</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step-by-Step Vertical Flow for TP -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left 8 Cols: Detailed Step-by-step Execution Pipeline -->
+        <div class="lg:col-span-8 space-y-4">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400 font-mono">
+            ขั้นตอนการไหลของข้อมูลจากบนลงล่างใน TP2 (Top-to-Bottom Execution Flow)
+          </h3>
+
+          <div class="space-y-3">
+            
+            <!-- TP Step 1 -->
+            <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-indigo-600 dark:text-indigo-400 text-xs">ก้าวที่ 1: Token เข้าสู่ GPU 1 และ GPU 2 พร้อมกัน</span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-slate-200 dark:bg-slate-700 font-mono">Input Replicated</span>
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-300">
+                เมื่อ Token คำถามเข้ามา เวกเตอร์ $X$ จะถูกส่งเข้าไปในหน่วยความจำของทั้ง GPU 1 และ GPU 2 พร้อมกันเป๊ะ (ขนาด 5,120 มิติ)
+              </p>
+            </div>
+
+            <!-- TP Step 2 -->
+            <div class="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-indigo-700 dark:text-indigo-300 text-xs">ก้าวที่ 2: ผ่าครึ่ง 48 หัว Attention! (GQA Slicing)</span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-indigo-200 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-mono">Column Parallel</span>
+              </div>
+              <p class="text-xs text-slate-700 dark:text-slate-300">
+                แทนที่การ์ดใบเดียวจะต้องคิดทั้ง 48 หัว เราผ่าครึ่งแบ่งกันทันที:
+              </p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                <div class="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800">
+                  <span class="font-bold text-indigo-600">GPU 1:</span> รับผิดชอบ Q1–Q24 และคู่กับ KV1–KV4 (คิดเสร็จในตัว)
+                </div>
+                <div class="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800">
+                  <span class="font-bold text-blue-600">GPU 2:</span> รับผิดชอบ Q25–Q48 และคู่กับ KV5–KV8 (คิดเสร็จในตัว)
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                *Softmax คำนวณจบในแต่ละการ์ด 100% จากนั้น GPU 1 คูณครึ่งซ้ายของ $W_O$ ได้ก้อน $A_1$ และ GPU 2 คูณครึ่งขวาของ $W_O$ ได้ก้อน $A_2$
+              </p>
+            </div>
+
+            <!-- TP Step 3 (Sync 1) -->
+            <div class="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-1.5">
+                  <span>⚡ ก้าวที่ 3: All-Reduce Sync ครั้งที่ 1 (เอาผลลัพธ์มา "บวกกันตรงๆ")</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-200 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-mono">Sum Reduction</span>
+              </div>
+              <p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                ทำไมต้องเอาค่า $A_1 + A_2$ มา <strong>"บวกกัน" (ไม่ใช่หาค่าเฉลี่ย Average)</strong>? ตามกฎพีชคณิตเชิงเส้น:
+              </p>
+              <div class="bg-white dark:bg-slate-900 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 text-xs font-mono text-emerald-600 dark:text-emerald-400">
+                ผลรวม Attention = [Head_1..24 | Head_25..48] · [W_O_บน / W_O_ล่าง] = (Head_1..24 · W_O_บน) + (Head_25..48 · W_O_ล่าง) = A_1 + A_2
+              </div>
+              <p class="text-[11px] text-slate-600 dark:text-slate-400">
+                หลังการ์ดทั้งสองบวกเลขเสร็จผ่าน NVLink/PCIe ทั้ง GPU 1 และ GPU 2 จะมีเวกเตอร์ผลรวมก้อนเดียวกันเป๊ะ ขนาด 5,120 ช่อง!
+              </p>
+            </div>
+
+            <!-- TP Step 4 (SwiGLU) -->
+            <div class="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/80 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-purple-700 dark:text-purple-300 text-xs">ก้าวที่ 4: ผ่ากระดานดำ FFN คนละครึ่ง (Column-Row Parallel Matrix Slicing)</span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-purple-200 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 font-mono">Column ➔ Row</span>
+              </div>
+              <p class="text-xs text-slate-700 dark:text-slate-300">
+                กระดานดำ FFN ขนาด 18,944 ช่อง จะถูกผ่าคนละครึ่ง (คนละ 9,472 ช่อง):
+              </p>
+              
+              <!-- Concrete 6x6 Matrix Slicing Example -->
+              <div class="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-purple-200 dark:border-purple-800 space-y-2 text-xs">
+                <span class="font-bold text-purple-600 dark:text-purple-400 font-mono block">💡 ตัวอย่างตัวเลขรูปธรรม (จำลองเมทริกซ์ 6×6 ผ่าครึ่งเป็น 6×3):</span>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px]">
+                  <div class="p-2 rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <strong>GPU 1 (ครึ่งแรก):</strong><br>
+                    • คูณขาขึ้น $W_{\text{gate}}, W_{\text{up}}$ คอลัมน์ที่ 1..3<br>
+                    • เข้าสูตร SwiGLU ได้ผลลัพธ์ 3 ช่อง<br>
+                    • คูณขาลง $W_{\text{down}}$ แถวที่ 1..3 ได้เวกเตอร์ $Y_1$
+                  </div>
+                  <div class="p-2 rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <strong>GPU 2 (ครึ่งหลัง):</strong><br>
+                    • คูณขาขึ้น $W_{\text{gate}}, W_{\text{up}}$ คอลัมน์ที่ 4..6<br>
+                    • เข้าสูตร SwiGLU ได้ผลลัพธ์ 3 ช่อง<br>
+                    • คูณขาลง $W_{\text{down}}$ แถวที่ 4..6 ได้เวกเตอร์ $Y_2$
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TP Step 5 (Sync 2) & Step 6 -->
+            <div class="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-1.5">
+                  <span>⚡ ก้าวที่ 5: All-Reduce Sync ครั้งที่ 2 + ไหลลงสู่ Layer 2 ➔ 64</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-200 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-mono">128 Syncs / Token</span>
+              </div>
+              <p class="text-xs text-slate-700 dark:text-slate-300">
+                นำ $Y_1 + Y_2$ มารวมกันผ่าน All-Reduce ครั้งที่สอง จบ Layer 1 อย่างสมบูรณ์! จากนั้นเวกเตอร์จะไหลลงสู่หัวตึก Layer 2 และทำซ้ำแบบนี้ 64 ชั้น (รวม 128 ครั้ง All-Reduce ต่อ 1 Token)
+              </p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Right 4 Cols: Performance & Hardware Verdict Box -->
+        <div class="lg:col-span-4 space-y-4">
+          <div class="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 space-y-3">
+            <h4 class="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <span>🏆 ทำไม TP2 ถึงเป็นตัวเลือกอันดับ 1 สำหรับองค์กร 2,000 คน?</span>
+            </h4>
+            <div class="space-y-2.5 text-xs text-slate-600 dark:text-slate-300">
+              <div class="flex items-start gap-2">
+                <span class="text-emerald-500 font-bold">✓</span>
+                <span><strong>ไม่มีการ์ดใบไหนว่างงาน (0% Idle Bubble):</strong> ทั้งสองการ์ดช่วยกันคิดทุกๆ ไมโครวินาที ทำให้ความเร็วต่อคำ (Single Speed) สูงถึง ~90–140 tok/s</span>
+              </div>
+              <div class="flex items-start gap-2">
+                <span class="text-emerald-500 font-bold">✓</span>
+                <span><strong>TTFT p50 เร็วที่สุด (&lt;90 ms):</strong> เวลาตอบสนองต่อคำแรกไวมาก ผู้ใช้รู้สึกทันใจ</span>
+              </div>
+              <div class="flex items-start gap-2">
+                <span class="text-emerald-500 font-bold">✓</span>
+                <span><strong>TP2 เหมาะกับสาย PCIe ของ A40:</strong> การซิงค์แค่ 2 ใบไม่ทำให้บัส PCIe Gen4 (64 GB/s) แย่งสัญญาณกันจนคอขวด (แต่ถ้าขึ้น TP8 บน PCIe ความเร็วจะตกฮวบ!)</span>
+              </div>
+              <div class="flex items-start gap-2">
+                <span class="text-amber-500 font-bold">⚠️</span>
+                <span><strong>ข้อจำกัด:</strong> ต้องการการ์ดจอที่เชื่อมต่อกันด้วยสายความเร็วสูง (NVLink หรือ PCIe ในเครื่องเดียวกัน) ห้ามใช้ TP ข้ามเครื่องผ่านสาย LAN ทั่วไปเด็ดขาด</span>
+              </div>
+            </div>
+
+            <!-- vLLM serve command preview -->
+            <div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700 font-mono text-[11px]">
+              <span class="text-slate-400 block mb-1">คำสั่งรันจริง (vLLM CLI):</span>
+              <div class="bg-black text-emerald-400 p-2.5 rounded-xl overflow-x-auto">
+                vllm serve Qwen/Qwen2.5-27B-Instruct \<br>
+                &nbsp;&nbsp;--tensor-parallel-size 2 \<br>
+                &nbsp;&nbsp;--max-model-len 32768
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- SECTION 2: APPROACH 2 — TEP / EP (EXPERT PARALLELISM) -->
+    <!-- ========================================================================= -->
+    <section id="section-tep" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-9 shadow-sm space-y-6">
+      
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+              แนวทางที่ 2 · MOE SPECIALIST
+            </span>
+            <span class="text-xs font-mono text-slate-400">DeepSeek 284B Winner (2,209 tok/s)</span>
+          </div>
+          <h2 class="text-xl md:text-2xl font-black font-brand text-slate-900 dark:text-white mt-1">
+            TEP / EP (Tensor + Expert Parallelism) — ผ่า Attention แต่แจกผู้เชี่ยวชาญ MoE เต็มตัว
+          </h2>
+          <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-1">
+            ผ่าหัว Attention ด้วย TP แต่ในส่วน FFN ที่มีหลายผู้เชี่ยวชาญ (MoE) ให้การ์ดแต่ละใบถือ Expert เต็มตัว ไม่ต้องผ่าเมทริกซ์ซอยย่อย!
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="setThreeApproach('tep')" class="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5">
+            <span>🗼 โหลดมุม 3D แนวทางนี้</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Comparison Banner: DeepSeek 284B vs Qwen 27B -->
+      <div class="bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div class="space-y-1">
+          <span class="font-bold text-purple-900 dark:text-purple-200 text-sm">💡 กฎเหล็ก Slide 24 จาก Ray Summit 2026:</span>
+          <p class="text-purple-700 dark:text-purple-300">
+            <strong>"Reach for TEP when: Sparse MoE models"</strong> vs <strong>"Think twice when: Dense models (nothing to shard)"</strong>
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-700">
+            DeepSeek 284B: MoE (ใช้ TEP)
+          </span>
+          <span class="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
+            Qwen 27B: Dense (ไม่ใช้ TEP)
+          </span>
+        </div>
+      </div>
+
+      <!-- Vertical Step-by-Step Flow for TEP -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-8 space-y-4">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400 font-mono">
+            ขั้นตอนการไหลของข้อมูลใน TEP (Top-to-Bottom MoE Routing)
+          </h3>
+
+          <div class="space-y-3">
+            <!-- Step 1-3 -->
+            <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-2">
+              <span class="font-bold text-indigo-600 dark:text-indigo-400 text-xs">ก้าวที่ 1–3: คำนวณ Attention แบบ TP8 + All-Reduce</span>
+              <p class="text-xs text-slate-600 dark:text-slate-300">
+                ในส่วนของ Attention ทุกการ์ด (เช่น 8× B200) ช่วยกันผ่าหัว Attention เหมือน TP ปกติ แล้วรวมผลลัพธ์ด้วย All-Reduce
+              </p>
+            </div>
+
+            <!-- Step 4: Router Selection -->
+            <div class="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-purple-700 dark:text-purple-300 text-xs">ก้าวที่ 4: MoE Router คัดเลือกผู้เชี่ยวชาญ 6 ตัว จาก 256 ตัว</span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-purple-200 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 font-mono">Top-6 Gating</span>
+              </div>
+              <p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                แทนที่จะต้องรันกระดานดำ FFN ขนาดยักษ์ 284 พันล้านพารามิเตอร์ โมเดล MoE จะมี <strong>Router (หัวหน้าห้อง)</strong> คอยคำนวณคะแนนว่า สำหรับ Token คำนี้ ควรส่งไปให้ผู้เชี่ยวชาญเบอร์ไหน เช่น เลือก Expert #14, #42, #88, #102, #175, #210
+              </p>
+            </div>
+
+            <!-- Step 5: Intact Expert Execution -->
+            <div class="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-blue-700 dark:text-blue-300 text-xs">ก้าวที่ 5: ส่ง Token ไปหาการ์ดที่ถือ Expert เต็มตัว (Intact Experts)</span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-blue-200 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-mono">32 Experts / GPU</span>
+              </div>
+              <p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                การ์ดแต่ละใบถือ Expert เต็มตัวใบละ 32 ตัว (8 GPUs × 32 = 256 Experts) เมื่อ Router บอกว่าต้องใช้ Expert #42 ข้อมูล Token ก็จะถูกส่งผ่าน NVLink ไปยัง GPU ใบที่ถือ Expert #42 นั้น โดยที่ Expert ตัวนั้นสามารถคำนวณแบบเต็มความเร็ว (Full Matmul) <strong>โดยไม่ต้องเสียเวลาผ่าซีกเมทริกซ์ให้เล็กลงจนสูญเสียความคุ้มค่าของการคำนวณบนการ์ดจอ!</strong>
+              </p>
+            </div>
+
+            <!-- Step 6: Combine -->
+            <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-2">
+              <span class="font-bold text-emerald-600 dark:text-emerald-400 text-xs">ก้าวที่ 6: รวมผลลัพธ์จาก 6 ผู้เชี่ยวชาญ แล้วไหลลงสู่ Layer 2 .. 60</span>
+              <p class="text-xs text-slate-600 dark:text-slate-300">
+                นำคำตอบจากทั้ง 6 Experts มาถ่วงน้ำหนักตามคะแนน Router แล้วรวมเป็นเวกเตอร์ก้อนเดียว ก่อนไหลลงสู่ Layer ถัดไป
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-4 space-y-4">
+          <div class="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 space-y-3 text-xs">
+            <h4 class="font-bold text-sm text-slate-900 dark:text-white">
+              🤔 ทำไม Qwen 3.8 27B ถึงใช้ TEP ไม่ได้?
+            </h4>
+            <p class="text-slate-600 dark:text-slate-300 leading-relaxed">
+              เพราะ <strong>Qwen 3.8 27B เป็นโมเดลแบบ Dense Transformer 100%</strong> (พารามิเตอร์ 27B ตัว ทำงานพร้อมกันหมดทุกคำ ไม่มีแบ่งเป็น 256 Experts เหมือน DeepSeek) เมื่อไม่มี Expert ให้แจกจ่าย การพยายามใช้ Expert Parallelism จึงเป็นไปไม่ได้เลย ทางออกเดียวที่ดีที่สุดของโมเดล Dense จึงคือ <strong>TP (Tensor Parallelism)</strong> ร่วมกับ <strong>DP (Data Parallelism)</strong>!
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- SECTION 3: APPROACH 3 — PP (PIPELINE PARALLELISM) -->
+    <!-- ========================================================================= -->
+    <section id="section-pp" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-9 shadow-sm space-y-6">
+      
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+              แนวทางที่ 3 · ASSEMBLY LINE
+            </span>
+            <span class="text-xs font-mono text-slate-400">Vertical Floor Slicing (สายพานโรงงาน)</span>
+          </div>
+          <h2 class="text-xl md:text-2xl font-black font-brand text-slate-900 dark:text-white mt-1">
+            PP (Pipeline Parallelism) — แบ่งตึกคนละชั้น ต่อคิวเหมือนสายพานโรงงาน
+          </h2>
+          <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-1">
+            GPU 1 ดูแลชั้น 1–32 (ครึ่งบนของตึก) ส่วน GPU 2 ดูแลชั้น 33–64 (ครึ่งล่างของตึก) ส่งมอบข้อมูลข้ามการ์ดแค่ครั้งเดียวที่รอยต่อชั้น!
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="setThreeApproach('pp')" class="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5">
+            <span>🗼 โหลดมุม 3D แนวทางนี้</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Vertical Step-by-Step Flow for PP -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <div class="lg:col-span-8 space-y-4">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400 font-mono">
+            ขั้นตอนการไหลของข้อมูลใน PP2 (Floor-by-Floor Execution)
+          </h3>
+
+          <div class="space-y-3">
+            
+            <!-- PP Step 1 -->
+            <div class="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-700 dark:text-amber-300 text-xs">ก้าวที่ 1: GPU 1 คำนวณ Layer 1 ถึง Layer 32 รวดเดียวในใบเดียว!</span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-mono">0 Syncs across GPUs</span>
+              </div>
+              <p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                GPU 1 มีทั้ง 48 Q-Heads และ FFN เต็มก้อนของชั้น 1–32 อยู่ใน VRAM ของตัวเอง <strong>จึงคำนวณวนตั้งแต่ชั้น 1 ถึง 32 ได้ลื่นไหล 100% โดยไม่ต้องส่งสายไฟคุยกับ GPU 2 เลยแม้แต่ครั้งเดียว!</strong>
+              </p>
+              <div class="p-2.5 rounded-xl bg-red-100 dark:bg-red-950/60 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 text-[11px] font-bold">
+                🚨 แต่จุดตายคือ: ระหว่างที่ GPU 1 กำลังคิดชั้น 1–32 อยู่นี้ GPU 2 จะต้อง "นั่งตบยุงว่างงาน (Idle Bubble)" รอไปเฉยๆ เพราะยังไม่มีข้อมูลไหลมาถึง!
+              </div>
+            </div>
+
+            <!-- PP Step 2 -->
+            <div class="p-4 rounded-2xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-blue-700 dark:text-blue-300 text-xs flex items-center gap-1.5">
+                  <span>⚡ ก้าวที่ 2: ส่งไม้ต่อข้ามการ์ดแค่ครั้งเดียวที่รอยต่อชั้น 32 ➔ 33!</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-blue-200 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-mono">P2P Activation</span>
+              </div>
+              <p class="text-xs text-slate-700 dark:text-slate-300">
+                เมื่อ GPU 1 คิดจบชั้น 32 จะส่งค่าเวกเตอร์ $X_{32}$ ก้อนเล็กๆ (ขนาดเพียง 5,120 floats) ข้ามสาย PCIe หรือสาย LAN ข้ามเครื่องไปยัง GPU 2 เพียงจังหวะเดียว!
+              </p>
+            </div>
+
+            <!-- PP Step 3 -->
+            <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-800 dark:text-slate-200 text-xs">ก้าวที่ 3: GPU 2 รับไม้ต่อ คำนวณ Layer 33 ถึง Layer 64 จนจบ</span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-slate-200 dark:bg-slate-700 font-mono">Output Generation</span>
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                GPU 2 คิดชั้น 33–64 รวดเดียวจนจบ แล้วพ่นคำตอบออกทาง LM Head! <em>(และคราวนี้ ถ้าไม่มีผู้ใช้คนอื่นส่งคำถามตามมาติดๆ GPU 1 ก็จะกลายเป็นฝ่ายนั่งตบยุงว่างงานแทน!)</em>
+              </p>
+            </div>
+
+          </div>
+
+          <!-- Timeline Comparison Table (TP vs PP Side-by-Side) -->
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+            <h4 class="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider font-mono">
+              ⏱️ ตารางเปรียบเทียบเวลา (Timeline 0–20s) ระหว่าง TP vs PP:
+            </h4>
+            <div class="overflow-x-auto text-xs">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-200 dark:border-slate-800 text-[11px] text-slate-500">
+                    <th class="py-2 pr-3">ช่วงเวลา</th>
+                    <th class="py-2 px-3 text-indigo-600 font-bold">TP2 (ช่วยกันรุมชั้นเดียวกัน)</th>
+                    <th class="py-2 pl-3 text-amber-600 font-bold">PP2 (คนละชั้นแบบสายพาน)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-[11px]">
+                  <tr>
+                    <td class="py-2 pr-3 text-slate-400">0 – 10 วินาที</td>
+                    <td class="py-2 px-3 text-slate-700 dark:text-slate-300">GPU 1 & GPU 2 <strong>รุมคิดพร้อมกัน</strong> เสร็จครบทั้ง 64 ชั้น! พ่นคำตอบได้ 100 คำ!</td>
+                    <td class="py-2 pl-3 text-amber-600 dark:text-amber-400">GPU 1 คิดชั้น 1–32 / <strong>GPU 2 นั่งว่างงานรอ (Idle)!</strong></td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 pr-3 text-slate-400">10 – 20 วินาที</td>
+                    <td class="py-2 px-3 text-slate-700 dark:text-slate-300">GPU 1 & GPU 2 รุมคิดคำตอบชุดถัดไป ได้อีก 100 คำ! (รวม 200 คำ)</td>
+                    <td class="py-2 pl-3 text-amber-600 dark:text-amber-400"><strong>GPU 1 นั่งว่างงานรอ (Idle)!</strong> / GPU 2 คิดชั้น 33–64 เพิ่งพ่นคำตอบได้ชุดแรก!</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right 4 Cols: When to use PP -->
+        <div class="lg:col-span-4 space-y-4">
+          <div class="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl p-5 space-y-3 text-xs">
+            <h4 class="font-bold text-sm text-amber-900 dark:text-amber-200">
+              🎯 แล้วเมื่อไหร่ที่เรา "จำเป็นต้องยอมใช้ PP"?
+            </h4>
+            <p class="text-amber-800 dark:text-amber-300 leading-relaxed">
+              สไลด์ 24 ระบุชัดเจน: <strong>"Reach for PP when: Crossing backend network between NVLink domains; freeing HBM once TP is maxed out"</strong>
+            </p>
+            <div class="space-y-2 pt-2 border-t border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+              <div>• <strong>กรณีแรมการ์ดไม่พอ:</strong> เช่น ใช้ vGPU 24GB แต่ต้องการรันโมเดลน้ำหนักเต็ม BF16 (54GB) ซึ่งการ์ดใบเดียวรับไม่ไหว</div>
+              <div>• <strong>กรณีเชื่อมต่อข้ามเซิร์ฟเวอร์ด้วยสายแลนช้า:</strong> เพราะ PP ส่งข้อมูลข้ามสายแค่เวกเตอร์กระป๋องเล็กๆ ตอนเปลี่ยนชั้น ไม่เหมือน TP ที่ต้องซิงค์ All-Reduce ถี่ๆ ชั้นละ 2 รอบจนสายแลนลุกเป็นไฟ!</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- SECTION 4: APPROACH 4 — DP / WHOLE REPLICAS & P/D DISAGGREGATION -->
+    <!-- ========================================================================= -->
+    <section id="section-dp" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-9 shadow-sm space-y-6">
+      
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+              แนวทางที่ 4 · ENTERPRISE SCALE
+            </span>
+            <span class="text-xs font-mono text-slate-400">24× A100/A40 vGPUs for 2,000 Users</span>
+          </div>
+          <h2 class="text-xl md:text-2xl font-black font-brand text-slate-900 dark:text-white mt-1">
+            DP / Whole Replicas & P/D Disaggregation — ตั้งตึกแยกหลายหลังคู่ขนาน
+          </h2>
+          <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-1">
+            นำตึกที่เราสร้างจาก TP/PP มาวางขนานกันหลายๆ หลังเพื่อรับผู้ใช้พร้อมกัน 2,000 คน (30 Concurrent Requests)
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="setThreeApproach('dp')" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5">
+            <span>🗼 โหลดมุม 3D แนวทางนี้</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2 Production Paradigms: 4A vs 4B -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- 4A: Hybrid DP x TP (12 Replicas x TP2) -->
+        <div class="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+            <h3 class="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">4A</span>
+              <span>Whole Replicas (12 ตึกคู่ขนาน × TP2)</span>
+            </h3>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold">
+              🏆 ชนะเลิศเรื่องความเรียบง่าย
+            </span>
+          </div>
+
+          <div class="space-y-3 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            <p>
+              จัดเรียงการ์ดจอทั้ง 24 ใบ ออกเป็น <strong>12 ตึกอิสระ</strong> (ตึกละ 2 การ์ดจอ: ตึก 1 = vGPU 1–2, ตึก 2 = vGPU 3–4 ... ตึก 12 = vGPU 23–24):
+            </p>
+            <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+              <div class="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
+                <span>1. Ray Serve Prefix-Aware Router ด้านบนสุด:</span>
+              </div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                คอยทำหน้าที่เป็นพยาบาลคัดกรอง แจกผู้ใช้ 30 คนลงไปที่ตึกทั้ง 12 หลังอย่างสม่ำเสมอ ทำให้แต่ละตึกรับภาระเพียง <strong>~2.5 คนพร้อมกัน</strong>
+              </p>
+            </div>
+
+            <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+              <div class="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400">
+                <span>2. การสื่อสารข้ามตึกเป็นศูนย์ (0% Cross-Node Overhead):</span>
+              </div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                แต่ละตึกมีโมเดลครบ 64 ชั้นสมบูรณ์ ทำงานเสร็จในตัวเอง ไม่ต้องส่งสายไฟคุยข้ามตึกเลยแม้แต่ไบต์เดียว! ความเร็ว Throughput จึงทวีคูณตามจำนวนตึก 12 เท่าตรงๆ
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4B: P/D Disaggregation (Prefill vs Decode Separation) -->
+        <div class="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+            <h3 class="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-xs">4B</span>
+              <span>P/D Disaggregation (แยกตึกอ่านโจทย์ ออกจากตึกเขียนคำตอบ)</span>
+            </h3>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold">
+              🚀 เหมาะกับงาน RAG เอกสารหนา
+            </span>
+          </div>
+
+          <div class="space-y-3 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            <p>
+              แบ่งการ์ดจอ 24 ใบออกเป็น 2 แผนกเฉพาะทาง:
+            </p>
+            <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+              <div class="font-bold text-blue-600 dark:text-blue-400">1. ตึก Prefill Pool (8 vGPUs แบบ TP4):</div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                รับเอกสารคำถามยาวๆ 8,000–32,000 tokens มาอ่านรวดเดียวพร้อมกัน (Compute-Bound) เพื่อสร้างก้อน <strong>KV Cache</strong> ครบทั้ง 64 ชั้น
+              </p>
+            </div>
+
+            <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+              <div class="font-bold text-purple-600 dark:text-purple-400">2. สะพานส่งมอบ KV Cache ผ่าน NIXL:</div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                โยนก้อนหน่วยความจำ KV Cache ข้ามสาย InfiniBand/PCIe ไปให้ตึก Decode
+              </p>
+            </div>
+
+            <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+              <div class="font-bold text-emerald-600 dark:text-emerald-400">3. ตึก Decode Pool (16 vGPUs แบบ TP2):</div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                รับไม้ต่อมาพ่นคำตอบทีละคำ (Memory-Bandwidth Bound) ทำให้รอบการเขียนคำตอบไม่ถูกรบกวนจากการอ่านเอกสารหนักๆ
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- SECTION 5: ULTIMATE DECISION MATRIX & ARCHITECTURAL SUMMARY -->
+    <!-- ========================================================================= -->
+    <section id="section-matrix" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-9 shadow-sm space-y-6">
+      
+      <div class="space-y-2">
+        <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+          📊 MASTER SUMMARY MATRIX
+        </span>
+        <h2 class="text-xl md:text-2xl font-black font-brand text-slate-900 dark:text-white">
+          ตารางเปรียบเทียบแม่บท 4 แนวทางสำหรับสถาปัตยกรรมระดับองค์กร
+        </h2>
+        <p class="text-xs md:text-sm text-slate-600 dark:text-slate-300">
+          สรุปเปรียบเทียบทุกมิติสำคัญเพื่อช่วยสถาปนิกและวิศวกร AI เลือกสถาปัตยกรรมที่ถูกต้องตรงกับฮาร์ดแวร์และโมเดลของคุณ
+        </p>
+      </div>
+
+      <!-- Comparison Table -->
+      <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 font-bold">
+              <th class="p-3.5">มิติการเปรียบเทียบ</th>
+              <th class="p-3.5 text-indigo-600">1. TP (Tensor)</th>
+              <th class="p-3.5 text-purple-600">2. TEP (Tensor + Expert)</th>
+              <th class="p-3.5 text-amber-600">3. PP (Pipeline)</th>
+              <th class="p-3.5 text-emerald-600">4. DP / Replicas (Whole)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800/80">
+            <tr>
+              <td class="p-3.5 font-bold text-slate-800 dark:text-slate-200">วิธีการผ่าโมเดล</td>
+              <td class="p-3.5">ผ่าซีกทุกชั้น (Attention & FFN)</td>
+              <td class="p-3.5">ผ่า Attention + แจก Expert เต็มใบ</td>
+              <td class="p-3.5">แบ่งชั้นคนละช่วง (เช่น 1–32 และ 33–64)</td>
+              <td class="p-3.5">จำลองทั้งโมเดลครบ 64 ชั้นขนานกันหลายตึก</td>
+            </tr>
+            <tr>
+              <td class="p-3.5 font-bold text-slate-800 dark:text-slate-200">การสื่อสารข้ามการ์ด</td>
+              <td class="p-3.5 text-indigo-600 font-bold">All-Reduce ถี่มาก (2 ครั้ง/ชั้น)</td>
+              <td class="p-3.5 text-purple-600">All-Reduce (Attention) + All-to-All</td>
+              <td class="p-3.5 text-amber-600">Point-to-Point แค่ตอนเปลี่ยนช่วงชั้น</td>
+              <td class="p-3.5 text-emerald-600 font-bold">ศูนย์! (0% ไม่มีการสื่อสารข้ามตึก)</td>
+            </tr>
+            <tr>
+              <td class="p-3.5 font-bold text-slate-800 dark:text-slate-200">ความเร็วต่อคำ (Single Latency)</td>
+              <td class="p-3.5 text-emerald-600 font-bold">เร็วที่สุด (&lt;90ms TTFT, ~140 tok/s)</td>
+              <td class="p-3.5">เร็วมากบน MoE (~140 tok/s)</td>
+              <td class="p-3.5 text-rose-600 font-bold">ช้าเพราะมี Idle Bubble</td>
+              <td class="p-3.5">ปานกลาง (~45–60 tok/s ต่อ 1 ตึก)</td>
+            </tr>
+            <tr>
+              <td class="p-3.5 font-bold text-slate-800 dark:text-slate-200">ความจุ Throughput รวม</td>
+              <td class="p-3.5">จำกัดด้วยจำนวนการ์ดใน 1 ตึก</td>
+              <td class="p-3.5">สูงมากบน MoE (2,209 tok/s)</td>
+              <td class="p-3.5">จำกัดด้วยฟองสบู่ความว่างงาน</td>
+              <td class="p-3.5 text-emerald-600 font-bold">สูงสุดขีด! สเกลตามจำนวนตึก 12–24 เท่า</td>
+            </tr>
+            <tr>
+              <td class="p-3.5 font-bold text-slate-800 dark:text-slate-200">เหมาะกับ Qwen 27B (Dense)?</td>
+              <td class="p-3.5 text-emerald-600 font-bold">⭐⭐⭐⭐⭐ ดีเลิศ (TP2)</td>
+              <td class="p-3.5 text-slate-400">❌ ไม่รองรับ (ไม่มี MoE)</td>
+              <td class="p-3.5 text-amber-600">⭐⭐ ใช้เมื่อแรมการ์ดเล็ก (24GB)</td>
+              <td class="p-3.5 text-emerald-600 font-bold">⭐⭐⭐⭐⭐ ดีเลิศ (12× TP2)</td>
+            </tr>
+            <tr>
+              <td class="p-3.5 font-bold text-slate-800 dark:text-slate-200">เหมาะกับ DeepSeek 284B (MoE)?</td>
+              <td class="p-3.5 text-amber-600">⭐⭐ เปลือง All-Reduce</td>
+              <td class="p-3.5 text-purple-600 font-bold">⭐⭐⭐⭐⭐ ชนะเลิศ (TEP8)</td>
+              <td class="p-3.5 text-slate-400">⭐⭐ ข้ามเครื่องเมื่อแรมไม่พอ</td>
+              <td class="p-3.5 text-emerald-600 font-bold">⭐⭐⭐⭐⭐ ดีเลิศ (2 Nodes = 4,647 tok/s)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Final Recommendation Card -->
+      <div class="bg-gradient-to-r from-indigo-500/10 via-blue-500/10 to-emerald-500/10 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 space-y-2">
+        <h4 class="font-bold text-sm text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
+          <span>🎯 คำแนะนำฟันธงสำหรับผู้ใช้งาน 2,000 คน (30 Concurrent Requests) บน 24× vGPUs:</span>
+        </h4>
+        <p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+          สำหรับโมเดล <strong>Qwen 3.8 27B (Dense)</strong> รูปแบบการติดตั้งที่ดีที่สุดในโลกจริงคือ <strong>Strategy A: 12 Replicas × TP2 (Hybrid DP12 × TP2)</strong> เพราะช่วยตัดความหน่วงของคำแรก (TTFT) ให้เหลือเพียง 88 ms โดยไม่มีฟองสบู่ Idle Bubble และแบ่งผู้ใช้ 30 คนไปที่ 12 ตึก ตึกละเพียง 2.5 คน ทำให้แรม KV Cache เหลือเฟือถึง 32.5 GB ต่อการ์ด รองรับการคุยและส่งเอกสารได้ยาวกว่า 496,000 tokens ต่อตึกอย่างสบายใจไร้กังวล!
+        </p>
+      </div>
+
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-xs text-slate-400 dark:text-slate-500 py-6 space-y-1">
+      <p>vLLM & Ray Parallelism Interactive Simulation Suite · Version 4 (True 3D Vertical Tower & Ultra Deep-Dive)</p>
+      <p class="font-mono text-[11px]">Based on Ray Summit 2026 Recap Presentation by Eyal Lantzman (Nscale) & Natdhanai Praneenatthavee</p>
+    </footer>
+
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT: THREE.JS 3D ENGINE & CONTROLS SCRIPT -->
+  <!-- ========================================================================= -->
+  <script>
+    // Global Application State
+    let currentApproach = 'tp'; // 'tp', 'tep', 'pp', 'dp'
+    let currentModel = 'qwen';   // 'qwen' (Dense 27B), 'deepseek' (MoE 284B)
+    let isPlaying = true;
+    let flowSpeed = 1.0;
+    let isExploded = false;
+
+    // Three.js Scene Variables
+    let scene, camera, renderer;
+    let towerGroup, tokenParticles = [];
+    let isThreeReady = false;
+    let targetCameraY = 0;
+    let targetCameraZ = 16;
+    let targetCameraX = 0;
+
+    // Mouse Drag Rotation
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+
+    // Initialize Three.js or Fallback Canvas
+    window.addEventListener('DOMContentLoaded', () => {
+      initThreeEngine();
+    });
+
+    function initThreeEngine() {
+      const canvas = document.getElementById('three-vertical-canvas');
+      if (!canvas) return;
+
+      const container = canvas.parentElement;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      // Check if window.THREE is available
+      if (typeof THREE !== 'undefined') {
+        try {
+          scene = new THREE.Scene();
+          scene.background = new THREE.Color(0x090d16); // Deep slate background
+
+          camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+          camera.position.set(0, 0, 16);
+
+          renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+          renderer.setSize(width, height);
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+          // Lights
+          const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+          scene.add(ambientLight);
+
+          const dirLight1 = new THREE.DirectionalLight(0x6366f1, 1.2);
+          dirLight1.position.set(10, 20, 15);
+          scene.add(dirLight1);
+
+          const dirLight2 = new THREE.DirectionalLight(0x10b981, 0.8);
+          dirLight2.position.set(-10, -10, 10);
+          scene.add(dirLight2);
+
+          towerGroup = new THREE.Group();
+          scene.add(towerGroup);
+
+          // Build Initial 3D Tower
+          buildTowerMesh(currentApproach);
+
+          // Spawn Animated Tokens
+          initTokenParticles();
+
+          // Event Listeners for Interaction
+          setupThreeInteractions(canvas);
+
+          isThreeReady = true;
+          animateThree();
+          return;
+        } catch (e) {
+          console.warn("WebGL initialization failed, falling back to 2D Canvas:", e);
+        }
+      }
+
+      // If THREE is blocked or failed, run the 2D high-DPI projection fallback
+      runCanvasFallback(canvas);
+    }
+
+    // Build 3D Mesh based on Approach
+    function buildTowerMesh(approach) {
+      if (!towerGroup) return;
+
+      // Clear previous children
+      while (towerGroup.children.length > 0) {
+        const obj = towerGroup.children[0];
+        towerGroup.remove(obj);
+      }
+
+      const spacing = isExploded ? 1.6 : 1.1;
+
+      // TOP: Input Tokens Stage
+      const inputGeo = new THREE.CylinderGeometry(2.5, 2.5, 0.4, 32);
+      const inputMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.3, metalness: 0.2 });
+      const inputMesh = new THREE.Mesh(inputGeo, inputMat);
+      inputMesh.position.y = 4.2 * spacing;
+      towerGroup.add(inputMesh);
+
+      // APPROACH SPECIFIC 3D GEOMETRY
+      if (approach === 'tp') {
+        // TP2: 2 GPUs side-by-side slicing through layers
+        // Layer 1 - Sliced Attention (GPU 1 Left, GPU 2 Right)
+        createGpuSlice(towerGroup, -1.4, 2.2 * spacing, 2.2, 0.8, 0x6366f1, "GPU 1: Q1-24");
+        createGpuSlice(towerGroup, 1.4, 2.2 * spacing, 2.2, 0.8, 0x3b82f6, "GPU 2: Q25-48");
+
+        // Sync Ring 1 (All-Reduce)
+        createSyncRing(towerGroup, 0, 1.3 * spacing, 0x10b981, "⚡ All-Reduce 1");
+
+        // Layer 1 - Sliced SwiGLU FFN
+        createGpuSlice(towerGroup, -1.4, 0.3 * spacing, 2.2, 0.9, 0x8b5cf6, "GPU 1: FFN Left");
+        createGpuSlice(towerGroup, 1.4, 0.3 * spacing, 2.2, 0.9, 0xa855f7, "GPU 2: FFN Right");
+
+        // Sync Ring 2 (All-Reduce)
+        createSyncRing(towerGroup, 0, -0.6 * spacing, 0x10b981, "⚡ All-Reduce 2");
+
+        // Stacked Layers indicator (Layer 2..64)
+        createStackedPillars(towerGroup, 0, -2.0 * spacing, 0x4f46e5);
+
+      } else if (approach === 'tep') {
+        // TEP: Sliced Attention + Intact Expert Bank
+        createGpuSlice(towerGroup, -1.4, 2.2 * spacing, 2.2, 0.8, 0x6366f1, "GPU 1: Attn Slice");
+        createGpuSlice(towerGroup, 1.4, 2.2 * spacing, 2.2, 0.8, 0x3b82f6, "GPU 2: Attn Slice");
+        createSyncRing(towerGroup, 0, 1.3 * spacing, 0x10b981, "All-Reduce");
+
+        // MoE Router Disc
+        const routerGeo = new THREE.CylinderGeometry(2.0, 2.0, 0.3, 32);
+        const routerMat = new THREE.MeshStandardMaterial({ color: 0xec4899, roughness: 0.2 });
+        const routerMesh = new THREE.Mesh(routerGeo, routerMat);
+        routerMesh.position.y = 0.5 * spacing;
+        towerGroup.add(routerMesh);
+
+        // Intact Experts Bank (6 Active Expert boxes)
+        for (let i = 0; i < 6; i++) {
+          const angle = (i / 6) * Math.PI * 2;
+          const exX = Math.cos(angle) * 1.8;
+          const exZ = Math.sin(angle) * 1.8;
+          const exGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+          const exMat = new THREE.MeshStandardMaterial({ color: 0x8b5cf6 });
+          const exMesh = new THREE.Mesh(exGeo, exMat);
+          exMesh.position.set(exX, -0.8 * spacing, exZ);
+          towerGroup.add(exMesh);
+        }
+
+        createStackedPillars(towerGroup, 0, -2.4 * spacing, 0xa855f7);
+
+      } else if (approach === 'pp') {
+        // PP: Vertical Assembly Line (GPU 1 Upper half, GPU 2 Lower half)
+        // Upper Building (GPU 1: Layers 1-32)
+        const gpu1Geo = new THREE.BoxGeometry(3.6, 2.2, 2.0);
+        const gpu1Mat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
+        const gpu1Mesh = new THREE.Mesh(gpu1Geo, gpu1Mat);
+        gpu1Mesh.position.y = 1.8 * spacing;
+        towerGroup.add(gpu1Mesh);
+
+        // P2P Activation Bridge (Single transfer)
+        const bridgeGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.0, 16);
+        const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
+        const bridgeMesh = new THREE.Mesh(bridgeGeo, bridgeMat);
+        bridgeMesh.position.y = 0.2 * spacing;
+        towerGroup.add(bridgeMesh);
+
+        // Lower Building (GPU 2: Layers 33-64)
+        const gpu2Geo = new THREE.BoxGeometry(3.6, 2.2, 2.0);
+        const gpu2Mat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
+        const gpu2Mesh = new THREE.Mesh(gpu2Geo, gpu2Mat);
+        gpu2Mesh.position.y = -1.5 * spacing;
+        towerGroup.add(gpu2Mesh);
+
+      } else if (approach === 'dp') {
+        // DP: 3 parallel towers representing 12 replicas across 24 vGPUs
+        for (let t = -1; t <= 1; t++) {
+          const towerX = t * 2.2;
+          const tGeo = new THREE.BoxGeometry(1.4, 4.5, 1.4);
+          const tMat = new THREE.MeshStandardMaterial({ 
+            color: t === 0 ? 0x10b981 : 0x059669, 
+            roughness: 0.3 
+          });
+          const tMesh = new THREE.Mesh(tGeo, tMat);
+          tMesh.position.set(towerX, 0.3 * spacing, 0);
+          towerGroup.add(tMesh);
+        }
+
+        // Ray Serve Router Disc on Top
+        const rayGeo = new THREE.CylinderGeometry(3.2, 3.2, 0.3, 32);
+        const rayMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
+        const rayMesh = new THREE.Mesh(rayGeo, rayMat);
+        rayMesh.position.y = 3.2 * spacing;
+        towerGroup.add(rayMesh);
+      }
+
+      // BOTTOM: Output LM Head Prediction Stage
+      const outGeo = new THREE.CylinderGeometry(2.5, 2.5, 0.4, 32);
+      const outMat = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.3, metalness: 0.2 });
+      const outMesh = new THREE.Mesh(outGeo, outMat);
+      outMesh.position.y = -4.0 * spacing;
+      towerGroup.add(outMesh);
+    }
+
+    function createGpuSlice(parent, x, y, width, height, colorHex, label) {
+      const geo = new THREE.BoxGeometry(width, height, 1.5);
+      const mat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3, metalness: 0.1 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, 0);
+      parent.add(mesh);
+    }
+
+    function createSyncRing(parent, x, y, colorHex, label) {
+      const geo = new THREE.TorusGeometry(2.2, 0.12, 16, 64);
+      const mat = new THREE.MeshStandardMaterial({ 
+        color: colorHex, 
+        emissive: colorHex, 
+        emissiveIntensity: 0.6 
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = Math.PI / 2;
+      mesh.position.set(x, y, 0);
+      parent.add(mesh);
+    }
+
+    function createStackedPillars(parent, x, y, colorHex) {
+      const geo = new THREE.BoxGeometry(3.8, 1.2, 1.8);
+      const mat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.5 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, 0);
+      parent.add(mesh);
+    }
+
+    // Animated Token Particle Spheres
+    function initTokenParticles() {
+      tokenParticles = [];
+      const particleCount = 18;
+      const geo = new THREE.SphereGeometry(0.18, 16, 16);
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x38bdf8,
+        emissiveIntensity: 0.8
+      });
+
+      for (let i = 0; i < particleCount; i++) {
+        const mesh = new THREE.Mesh(geo, mat);
+        // Stagger positions from top to bottom
+        mesh.position.y = 4.2 - (i * 0.48);
+        mesh.position.x = (Math.random() - 0.5) * 1.5;
+        mesh.position.z = (Math.random() - 0.5) * 1.0;
+        mesh.userData = { speed: 0.04 + Math.random() * 0.02 };
+        towerGroup.add(mesh);
+        tokenParticles.push(mesh);
+      }
+    }
+
+    // Animation Loop
+    function animateThree() {
+      requestAnimationFrame(animateThree);
+
+      // Smooth camera interpolation
+      if (camera) {
+        camera.position.x += (targetCameraX - camera.position.x) * 0.08;
+        camera.position.y += (targetCameraY - camera.position.y) * 0.08;
+        camera.position.z += (targetCameraZ - camera.position.z) * 0.08;
+        camera.lookAt(0, 0, 0);
+      }
+
+      // Gentle auto-rotation when not dragging
+      if (!isDragging && towerGroup) {
+        towerGroup.rotation.y += 0.003 * flowSpeed;
+      }
+
+      // Animate flowing tokens down the vertical tower
+      if (isPlaying && tokenParticles.length > 0) {
+        const spacing = isExploded ? 1.6 : 1.1;
+        const topLimit = 4.2 * spacing;
+        const bottomLimit = -4.0 * spacing;
+
+        tokenParticles.forEach(p => {
+          p.position.y -= p.userData.speed * flowSpeed;
+          if (p.position.y < bottomLimit) {
+            p.position.y = topLimit;
+            p.position.x = (Math.random() - 0.5) * 1.5;
+            p.position.z = (Math.random() - 0.5) * 1.0;
+          }
+        });
+      }
+
+      if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    // Camera Presets
+    function setCameraView(preset) {
+      if (preset === 'front') {
+        targetCameraX = 0;
+        targetCameraY = 0;
+        targetCameraZ = 16;
+        if (towerGroup) towerGroup.rotation.y = 0;
+      } else if (preset === 'iso') {
+        targetCameraX = 8;
+        targetCameraY = 6;
+        targetCameraZ = 14;
+      }
+    }
+
+    function resetCamera() {
+      targetCameraX = 0;
+      targetCameraY = 0;
+      targetCameraZ = 16;
+      if (towerGroup) {
+        towerGroup.rotation.set(0, 0, 0);
+      }
+    }
+
+    function toggleExplodeSpacing() {
+      isExploded = !isExploded;
+      const btn = document.getElementById('btn-explode');
+      if (btn) {
+        btn.classList.toggle('bg-indigo-600', isExploded);
+        btn.classList.toggle('bg-slate-800', !isExploded);
+      }
+      buildTowerMesh(currentApproach);
+    }
+
+    function togglePlayPause() {
+      isPlaying = !isPlaying;
+      const icon = document.getElementById('play-icon');
+      const text = document.getElementById('play-text');
+      if (icon && text) {
+        icon.textContent = isPlaying ? '⏸️' : '▶️';
+        text.textContent = isPlaying ? 'พักการไหล' : 'เริ่มการไหล';
+      }
+    }
+
+    function setFlowSpeed(spd) {
+      flowSpeed = spd;
+    }
+
+    // Switch Approach in 3D & Update Blueprint Box
+    function setThreeApproach(approach) {
+      currentApproach = approach;
+
+      // Update Tab Styles
+      ['tp', 'tep', 'pp', 'dp'].forEach(id => {
+        const tab = document.getElementById(`3d-tab-${id}`);
+        if (tab) {
+          if (id === approach) {
+            tab.className = "px-3 py-1.5 rounded-xl font-bold bg-indigo-600 text-white shadow-sm transition-all flex items-center gap-1";
+          } else {
+            tab.className = "px-3 py-1.5 rounded-xl font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1";
+          }
+        }
+      });
+
+      // Update Blueprint Text
+      const tag = document.getElementById('blueprint-tag');
+      const title = document.getElementById('blueprint-title');
+      const desc = document.getElementById('blueprint-desc');
+      const comm = document.getElementById('blueprint-comm');
+
+      if (approach === 'tp') {
+        tag.textContent = "APPROACH 1";
+        tag.className = "px-2 py-0.5 rounded-md bg-indigo-600 text-[10px] font-bold uppercase tracking-wider";
+        title.textContent = "TP2 (Tensor Parallelism บน 2 vGPUs)";
+        desc.textContent = "GPU 1 และ GPU 2 รุมคำนวณ Layer เดียวกันพร้อมกัน: แบ่ง 48 Q-Heads คนละ 24 หัว และแบ่ง FFN คนละครึ่ง จากนั้นซิงค์ค่าด้วย All-Reduce 2 ครั้งต่อชั้น ทำให้ไม่มีการ์ดใบไหนว่างงาน!";
+        comm.textContent = "NVLink / PCIe (All-Reduce 2 ครั้ง/ชั้น)";
+      } else if (approach === 'tep') {
+        tag.textContent = "APPROACH 2";
+        tag.className = "px-2 py-0.5 rounded-md bg-purple-600 text-[10px] font-bold uppercase tracking-wider";
+        title.textContent = "TEP (Tensor + Expert Parallelism)";
+        desc.textContent = "ผ่าหัว Attention ด้วย TP แต่ในส่วน FFN ใช้ Router เลือก 6 จาก 256 Experts ส่งไปให้การ์ดที่ถือ Expert เต็มตัวคำนวณจบในใบเดียว (ยอดเยี่ยมสำหรับ DeepSeek 284B แต่ Dense Qwen 27B ไม่มี Expert ให้ผ่า)";
+        comm.textContent = "NVLink (Attention All-Reduce + MoE Token Dispatch)";
+      } else if (approach === 'pp') {
+        tag.textContent = "APPROACH 3";
+        tag.className = "px-2 py-0.5 rounded-md bg-amber-600 text-[10px] font-bold uppercase tracking-wider";
+        title.textContent = "PP2 (Pipeline Parallelism แบ่งตึกคนละชั้น)";
+        desc.textContent = "GPU 1 ดูแลชั้น 1–32 ส่วน GPU 2 ดูแลชั้น 33–64 ส่งเวกเตอร์ข้ามสายไฟแค่ครั้งเดียว แต่เกิดช่องว่าง Pipeline Bubble (การ์ดใบนึงต้องนั่งรออีกใบนึงคิดให้เสร็จก่อน)";
+        comm.textContent = "PCIe / RoCE / InfiniBand (P2P Activation 1 ครั้ง/คำ)";
+      } else if (approach === 'dp') {
+        tag.textContent = "APPROACH 4";
+        tag.className = "px-2 py-0.5 rounded-md bg-emerald-600 text-[10px] font-bold uppercase tracking-wider";
+        title.textContent = "DP / Whole Replicas (12 ตึกคู่ขนานสำหรับ 2,000 คน)";
+        desc.textContent = "ตั้งตึกสมบูรณ์ 12 หลัง (ตึกละ 2 การ์ดจอแบบ TP2) มี Ray Serve Router คอยแจกคิวผู้ใช้ 30 คนลงไปตึกละ ~2.5 คน ไม่มีการส่งสายไฟคุยข้ามตึกเลย (0% Cross-Node Overhead)!";
+        comm.textContent = "Ray Serve HTTP / gRPC Router (Zero Cross-GPU Overhead)";
+      }
+
+      // Rebuild 3D Mesh
+      if (isThreeReady) {
+        buildTowerMesh(approach);
+        initTokenParticles();
+      }
+    }
+
+    // Mouse Interaction for 3D Orbit
+    function setupThreeInteractions(canvas) {
+      canvas.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        previousMousePosition = { x: e.clientX, y: e.clientY };
+      });
+
+      window.addEventListener('mouseup', () => {
+        isDragging = false;
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (!isDragging || !towerGroup) return;
+
+        const deltaX = e.clientX - previousMousePosition.x;
+        const deltaY = e.clientY - previousMousePosition.y;
+
+        towerGroup.rotation.y += deltaX * 0.008;
+        towerGroup.rotation.x += deltaY * 0.005;
+
+        // Clamp x rotation to prevent flipping upside down
+        towerGroup.rotation.x = Math.max(-0.6, Math.min(0.6, towerGroup.rotation.x));
+
+        previousMousePosition = { x: e.clientX, y: e.clientY };
+      });
+
+      // Zoom via scroll wheel
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        targetCameraZ += e.deltaY * 0.01;
+        targetCameraZ = Math.max(8, Math.min(28, targetCameraZ));
+      }, { passive: false });
+
+      // Resize handler
+      window.addEventListener('resize', () => {
+        if (!renderer || !camera) return;
+        const container = canvas.parentElement;
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+      });
+    }
+
+    // High-DPI 2D Canvas Fallback (if WebGL/Three.js is restricted by CSP)
+    function runCanvasFallback(canvas) {
+      const ctx = canvas.getContext('2d');
+      const container = canvas.parentElement;
+
+      function render2D() {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        canvas.width = width * window.devicePixelRatio;
+        canvas.height = height * window.devicePixelRatio;
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+        ctx.fillStyle = "#090d16";
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw central vertical axis
+        ctx.strokeStyle = "#1e293b";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(width / 2, 40);
+        ctx.lineTo(width / 2, height - 40);
+        ctx.stroke();
+
+        // Draw Layer Boxes
+        const centerX = width / 2;
+        ctx.fillStyle = "#6366f1";
+        ctx.fillRect(centerX - 120, 80, 110, 45);
+        ctx.fillStyle = "#3b82f6";
+        ctx.fillRect(centerX + 10, 80, 110, 45);
+
+        ctx.fillStyle = "#10b981";
+        ctx.fillRect(centerX - 90, 145, 180, 20);
+
+        ctx.fillStyle = "#8b5cf6";
+        ctx.fillRect(centerX - 120, 185, 110, 50);
+        ctx.fillStyle = "#a855f7";
+        ctx.fillRect(centerX + 10, 185, 110, 50);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 12px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("GPU 1: Q1-24", centerX - 65, 107);
+        ctx.fillText("GPU 2: Q25-48", centerX + 65, 107);
+        ctx.fillText("⚡ All-Reduce Sync", centerX, 159);
+        ctx.fillText("GPU 1: FFN Left", centerX - 65, 215);
+        ctx.fillText("GPU 2: FFN Right", centerX + 65, 215);
+
+        requestAnimationFrame(render2D);
+      }
+      render2D();
+    }
+
+    // Global Model Toggle (Qwen vs DeepSeek)
+    function switchGlobalModel(model) {
+      currentModel = model;
+      const btnQwen = document.getElementById('btn-model-qwen');
+      const btnDs = document.getElementById('btn-model-deepseek');
+
+      if (model === 'qwen') {
+        btnQwen.className = "px-2.5 py-1 rounded-lg font-bold bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm transition-all";
+        btnDs.className = "px-2.5 py-1 rounded-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 transition-all";
+      } else {
+        btnDs.className = "px-2.5 py-1 rounded-lg font-bold bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm transition-all";
+        btnQwen.className = "px-2.5 py-1 rounded-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 transition-all";
+      }
+    }
+
+    // Theme Toggle
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.toggle('dark');
+      const icons = [document.getElementById('theme-icon'), document.getElementById('theme-icon-m')];
+      icons.forEach(icon => {
+        if (icon) icon.textContent = isDark ? '🌙' : '☀️';
+      });
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    }
+
+    // Check saved theme
+    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+      const icons = [document.getElementById('theme-icon'), document.getElementById('theme-icon-m')];
+      icons.forEach(icon => {
+        if (icon) icon.textContent = '🌙';
+      });
+    }
+  </script>
+</body>
+</html>
